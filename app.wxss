@@ -1,0 +1,132 @@
+page {
+  min-height: 100%;
+  background: linear-gradient(180deg, #fff7ed 0%, #f8fafc 22%, #f8fafc 100%);
+  color: #0f172a;
+  font-family: "PingFang SC", "Helvetica Neue", sans-serif;
+}
+
+.page-shell {
+  padding: 32rpx;
+  box-sizing: border-box;
+}
+
+.hero-card,
+.panel,
+.doc-card,
+.empty-card,
+.form-card,
+.profile-card {
+  background: rgba(255, 255, 255, 0.94);
+  border: 2rpx solid rgba(251, 146, 60, 0.16);
+  border-radius: 32rpx;
+  box-shadow: 0 18rpx 48rpx rgba(15, 23, 42, 0.06);
+}
+
+.hero-card,
+.form-card,
+.panel,
+.profile-card,
+.empty-card {
+  padding: 32rpx;
+}
+
+.page-title {
+  font-size: 52rpx;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.page-subtitle {
+  margin-top: 16rpx;
+  font-size: 26rpx;
+  color: #64748b;
+  line-height: 1.7;
+}
+
+.section-title {
+  font-size: 32rpx;
+  font-weight: 700;
+}
+
+.muted {
+  color: #64748b;
+}
+
+.field {
+  margin-top: 24rpx;
+}
+
+.field-label {
+  display: block;
+  margin-bottom: 14rpx;
+  font-size: 24rpx;
+  color: #475569;
+}
+
+.field-input,
+.field-textarea {
+  width: 100%;
+  padding: 0 24rpx;
+  border-radius: 24rpx;
+  background: #fff;
+  border: 2rpx solid #e2e8f0;
+  box-sizing: border-box;
+  font-size: 28rpx;
+}
+
+.field-input {
+  height: 88rpx;
+  line-height: 88rpx;
+}
+
+.field-textarea {
+  padding: 22rpx 24rpx;
+  min-height: 220rpx;
+  line-height: 1.7;
+}
+
+.primary-btn,
+.ghost-btn,
+.danger-btn {
+  height: 88rpx;
+  border-radius: 999rpx;
+  font-size: 28rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.primary-btn {
+  background: linear-gradient(135deg, #ea580c, #f97316);
+  color: #fff;
+}
+
+.ghost-btn {
+  background: #fff;
+  color: #c2410c;
+  border: 2rpx solid rgba(194, 65, 12, 0.2);
+}
+
+.danger-btn {
+  background: #fff1f2;
+  color: #be123c;
+  border: 2rpx solid rgba(190, 18, 60, 0.14);
+}
+
+.btn-row {
+  margin-top: 32rpx;
+  display: flex;
+  gap: 20rpx;
+}
+
+.btn-row button {
+  flex: 1;
+}
+
+.link-row {
+  margin-top: 24rpx;
+  display: flex;
+  justify-content: space-between;
+  font-size: 24rpx;
+  color: #c2410c;
+}

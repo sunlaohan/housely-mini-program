@@ -1,0 +1,37 @@
+{
+  "pages": [
+    "pages/auth/login/index",
+    "pages/auth/register/index",
+    "pages/auth/reset/index",
+    "pages/home/index",
+    "pages/editor/index",
+    "pages/profile/index",
+    "pages/profile/password/index",
+    "pages/profile/security/index"
+  ],
+  "window": {
+    "navigationBarTitleText": "Housely Docs",
+    "navigationBarBackgroundColor": "#fff7ed",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#f8fafc",
+    "backgroundTextStyle": "light"
+  },
+  "tabBar": {
+    "color": "#64748b",
+    "selectedColor": "#c2410c",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/home/index",
+        "text": "首页"
+      },
+      {
+        "pagePath": "pages/profile/index",
+        "text": "个人中心"
+      }
+    ]
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}

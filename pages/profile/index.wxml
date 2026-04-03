@@ -1,0 +1,38 @@
+<view class="page-shell">
+  <view class="profile-card">
+    <view class="profile-top">
+      <block wx:if="{{currentUser.avatar}}">
+        <image class="avatar" src="{{currentUser.avatar}}" mode="aspectFill"></image>
+      </block>
+      <view wx:else class="avatar avatar-fallback">{{avatarInitial}}</view>
+      <view class="profile-meta">
+        <view class="page-title" style="font-size: 42rpx;">{{currentUser.username}}</view>
+        <view class="page-subtitle" style="margin-top: 10rpx;">创建时间 {{createdLabel || '刚刚'}}</view>
+      </view>
+    </view>
+
+    <button class="ghost-btn" style="margin-top: 28rpx;" bindtap="pickAvatar">修改头像</button>
+  </view>
+
+  <view class="panel" style="margin-top: 28rpx;">
+    <view class="section-title">账号安全</view>
+    <view class="action-list">
+      <view class="action-item" bindtap="goPassword">
+        <text>修改密码</text>
+        <text class="action-arrow">></text>
+      </view>
+      <view class="action-item" bindtap="goSecurity">
+        <text>修改密保问题</text>
+        <text class="action-arrow">></text>
+      </view>
+      <view class="action-item" bindtap="logoutAccount">
+        <text>退出登录</text>
+        <text class="action-arrow">></text>
+      </view>
+      <view class="action-item danger" bindtap="removeAccount">
+        <text>注销账号</text>
+        <text class="action-arrow">></text>
+      </view>
+    </view>
+  </view>
+</view>

@@ -1,0 +1,32 @@
+<view class="page-shell">
+  <view class="hero-card">
+    <view class="page-title">通过密保重置密码</view>
+    <view class="page-subtitle">先输入账号查询密保问题，再根据密保答案设置新密码。</view>
+  </view>
+
+  <view class="form-card" style="margin-top: 28rpx;">
+    <view class="field">
+      <text class="field-label">账号</text>
+      <input class="field-input" placeholder="请输入账号" data-field="username" bindinput="onInput" value="{{username}}" />
+    </view>
+
+    <button class="ghost-btn" style="margin-top: 24rpx;" bindtap="fillQuestion">获取密保问题</button>
+
+    <view class="field">
+      <text class="field-label">密保问题</text>
+      <input class="field-input" disabled placeholder="账号对应的密保问题" value="{{securityQuestion}}" />
+    </view>
+
+    <view class="field">
+      <text class="field-label">密保答案</text>
+      <input class="field-input" placeholder="请输入密保答案" data-field="securityAnswer" bindinput="onInput" value="{{securityAnswer}}" />
+    </view>
+
+    <view class="field">
+      <text class="field-label">新密码</text>
+      <input class="field-input" password placeholder="请输入新密码" data-field="nextPassword" bindinput="onInput" value="{{nextPassword}}" />
+    </view>
+
+    <button class="primary-btn" style="margin-top: 32rpx;" bindtap="submitReset">确认重置</button>
+  </view>
+</view>

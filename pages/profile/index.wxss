@@ -1,0 +1,49 @@
+.profile-top {
+  display: flex;
+  align-items: center;
+}
+
+.avatar {
+  width: 136rpx;
+  height: 136rpx;
+  border-radius: 50%;
+}
+
+.avatar-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #fdba74, #fb7185);
+  color: #fff;
+  font-size: 48rpx;
+  font-weight: 700;
+}
+
+.profile-meta {
+  margin-left: 24rpx;
+}
+
+.action-list {
+  margin-top: 24rpx;
+}
+
+.action-item {
+  padding: 28rpx 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 2rpx solid #f1f5f9;
+  font-size: 28rpx;
+}
+
+.action-item:last-child {
+  border-bottom: 0;
+}
+
+.action-arrow {
+  color: #94a3b8;
+}
+
+.danger {
+  color: #be123c;
+}

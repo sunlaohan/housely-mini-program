@@ -1,0 +1,98 @@
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.toolbar-actions {
+  display: flex;
+  gap: 24rpx;
+}
+
+.toolbar-link {
+  color: #c2410c;
+  font-size: 26rpx;
+  font-weight: 600;
+}
+
+.add-link {
+  padding: 14rpx 22rpx;
+  background: #fff7ed;
+  border-radius: 999rpx;
+}
+
+.empty-title {
+  font-size: 36rpx;
+  font-weight: 700;
+}
+
+.swipe-shell {
+  position: relative;
+  margin-top: 24rpx;
+  overflow: hidden;
+  border-radius: 28rpx;
+}
+
+.delete-action {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 160rpx;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #e11d48;
+}
+
+.delete-btn {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+  background: transparent;
+  color: #fff;
+}
+
+.doc-card {
+  position: relative;
+  z-index: 1;
+  padding: 28rpx;
+  transition: transform 0.2s ease;
+}
+
+.doc-card.shift {
+  transform: translateX(-160rpx);
+}
+
+.doc-main {
+  display: flex;
+  align-items: flex-start;
+}
+
+.doc-checkbox {
+  margin-right: 12rpx;
+  margin-top: 4rpx;
+}
+
+.doc-content {
+  flex: 1;
+}
+
+.doc-name {
+  font-size: 30rpx;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.doc-desc {
+  margin-top: 10rpx;
+  font-size: 24rpx;
+  color: #475569;
+  line-height: 1.7;
+}
+
+.doc-meta {
+  margin-top: 18rpx;
+  font-size: 22rpx;
+  color: #94a3b8;
+}

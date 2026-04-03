@@ -1,0 +1,52 @@
+<view class="page-shell" bindtap="closeSwipe">
+  <view class="hero-card">
+    <view class="page-title">我的文档</view>
+    <view class="page-subtitle">登录账号后即可管理扫描生成的 Markdown 文档，支持右上角新增和批量操作。</view>
+  </view>
+
+  <view class="panel" style="margin-top: 28rpx;">
+    <view class="toolbar">
+      <view>
+        <view class="section-title">文件列表</view>
+        <view class="muted" style="margin-top: 10rpx;">共 {{docs.length}} 个文件</view>
+      </view>
+      <view class="toolbar-actions">
+        <text class="toolbar-link" bindtap="toggleBatch">{{batchMode ? '完成' : '批量操作'}}</text>
+        <text class="toolbar-link add-link" bindtap="goAdd">添加</text>
+      </view>
+    </view>
+
+    <block wx:if="{{!docs.length}}">
+      <view class="empty-card" style="margin-top: 28rpx;">
+        <view class="empty-title">还没有文档</view>
+        <view class="page-subtitle" style="margin-top: 12rpx;">首次登录时这里会展示空状态。点击下方主按钮，进入扫描或导入流程并生成 Markdown。</view>
+        <button class="primary-btn" style="margin-top: 28rpx;" bindtap="goAdd">添加</button>
+      </view>
+    </block>
+
+    <block wx:else>
+      <checkbox-group bindchange="onSelectChange">
+        <block wx:for="{{docs}}" wx:key="id">
+          <view class="swipe-shell" catchtap="noop" data-id="{{item.id}}" bindtouchstart="onTouchStart" bindtouchend="onTouchEnd">
+            <view class="delete-action {{swipeId === item.id ? 'show' : ''}}">
+              <button class="delete-btn" data-id="{{item.id}}" bindtap="confirmDelete">删除</button>
+            </view>
+
+            <view class="doc-card {{swipeId === item.id ? 'shift' : ''}}" data-id="{{item.id}}" bindtap="openDoc">
+              <view class="doc-main">
+                <checkbox wx:if="{{batchMode}}" class="doc-checkbox" value="{{item.id}}" />
+                <view class="doc-content">
+                  <view class="doc-name">{{item.name}}</view>
+                  <view class="doc-desc">{{item.description}}</view>
+                  <view class="doc-meta">更新于 {{item.updatedLabel}}</view>
+                </view>
+              </view>
+            </view>
+          </view>
+        </block>
+      </checkbox-group>
+
+      <button wx:if="{{batchMode}}" class="danger-btn" style="margin-top: 28rpx;" bindtap="deleteSelected">删除选中项</button>
+    </block>
+  </view>
+</view>

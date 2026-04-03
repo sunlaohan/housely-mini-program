@@ -1,0 +1,25 @@
+<view class="page-shell">
+  <view class="hero-card">
+    <view class="page-title">修改密保问题</view>
+    <view class="page-subtitle">需要先通过当前密码校验，才能更新新的密保问题和答案。</view>
+  </view>
+
+  <view class="form-card" style="margin-top: 28rpx;">
+    <view class="field">
+      <text class="field-label">当前密码</text>
+      <input class="field-input" password placeholder="请输入当前密码" data-field="password" bindinput="onInput" value="{{password}}" />
+    </view>
+
+    <view class="field">
+      <text class="field-label">新的密保问题</text>
+      <input class="field-input" placeholder="请输入新的密保问题" data-field="securityQuestion" bindinput="onInput" value="{{securityQuestion}}" />
+    </view>
+
+    <view class="field">
+      <text class="field-label">新的密保答案</text>
+      <input class="field-input" placeholder="请输入新的密保答案" data-field="securityAnswer" bindinput="onInput" value="{{securityAnswer}}" />
+    </view>
+
+    <button class="primary-btn" style="margin-top: 32rpx;" bindtap="submit">确认修改</button>
+  </view>
+</view>

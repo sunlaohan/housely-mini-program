@@ -1,0 +1,15 @@
+.scan-summary {
+  margin-top: 24rpx;
+  padding: 24rpx;
+  border-radius: 24rpx;
+  background: #fff7ed;
+}
+
+.scan-chip {
+  display: inline-flex;
+  padding: 10rpx 20rpx;
+  border-radius: 999rpx;
+  font-size: 22rpx;
+  color: #9a3412;
+  background: #ffedd5;
+}
