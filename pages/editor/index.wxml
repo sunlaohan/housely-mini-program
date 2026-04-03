@@ -5,11 +5,21 @@
   </view>
 
   <view class="form-card" style="margin-top: 28rpx;">
-    <button class="primary-btn" bindtap="startScan">{{mode === 'edit' ? '重新扫描 / 导入' : '开始扫描 / 导入'}}</button>
+    <button class="primary-btn" loading="{{isScanning}}" bindtap="startScan">{{mode === 'edit' ? '重新扫描 / 导入' : '开始扫描 / 导入'}}</button>
 
     <view wx:if="{{sourceName}}" class="scan-summary">
       <view class="scan-chip">{{sourceType === 'image' ? '图片扫描' : '文件导入'}}</view>
       <view class="muted" style="margin-top: 16rpx;">来源文件：{{sourceName}}</view>
+    </view>
+
+    <view wx:if="{{ocrStatus}}" class="ocr-status-card">
+      <view class="ocr-status-top">
+        <view class="scan-chip">{{ocrProvider || 'MinerU'}}</view>
+        <view class="ocr-status-tag status-{{ocrStatus}}">{{ocrStatus === 'success' ? '已完成' : (ocrStatus === 'failed' ? '失败' : '处理中')}}</view>
+      </view>
+      <view class="ocr-status-text">{{ocrMessage || '等待 OCR 结果'}}</view>
+      <view wx:if="{{ocrTaskId}}" class="ocr-task-id">任务号：{{ocrTaskId}}</view>
+      <button wx:if="{{ocrTaskId && ocrStatus !== 'success'}}" class="ghost-btn ocr-refresh-btn" loading="{{isScanning}}" bindtap="refreshOcrResult">查询识别结果</button>
     </view>
 
     <view class="field">

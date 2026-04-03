@@ -16,6 +16,10 @@ function mapDoc(doc) {
     markdown: doc.markdown || '',
     sourceName: doc.sourceName || '',
     sourceType: doc.sourceType || '',
+    sourceFileId: doc.sourceFileId || '',
+    ocrTaskId: doc.ocrTaskId || '',
+    ocrProvider: doc.ocrProvider || '',
+    ocrStatus: doc.ocrStatus || '',
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt
   };
@@ -44,6 +48,10 @@ async function addDocument(userId, doc) {
     markdown: doc.markdown,
     sourceName: doc.sourceName,
     sourceType: doc.sourceType,
+    sourceFileId: doc.sourceFileId || '',
+    ocrTaskId: doc.ocrTaskId || '',
+    ocrProvider: doc.ocrProvider || '',
+    ocrStatus: doc.ocrStatus || '',
     createdAt: now,
     updatedAt: now
   };
@@ -76,6 +84,10 @@ async function updateDocument(userId, docId, patch) {
     markdown: patch.markdown,
     sourceName: patch.sourceName,
     sourceType: patch.sourceType,
+    sourceFileId: patch.sourceFileId || '',
+    ocrTaskId: patch.ocrTaskId || '',
+    ocrProvider: patch.ocrProvider || '',
+    ocrStatus: patch.ocrStatus || '',
     updatedAt: new Date()
   };
 

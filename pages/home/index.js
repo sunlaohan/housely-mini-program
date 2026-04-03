@@ -8,7 +8,10 @@ Page({
     batchMode: false,
     selectedIds: [],
     swipeId: '',
-    touchStartX: 0
+    touchStartX: 0,
+    touchCurrentX: 0,
+    swipeThreshold: 88,
+    swipeMaxOffset: 144
   },
 
   onShow() {
@@ -16,6 +19,7 @@ Page({
       try {
         const docs = (await getDocuments(user.id)).map(this.decorateDoc);
         this.setData({
+          currentUser: user,
           docs
         });
         getApp().setCurrentUser(user);
@@ -29,7 +33,8 @@ Page({
     return {
       ...doc,
       createdLabel: formatDate(doc.createdAt),
-      updatedLabel: formatDate(doc.updatedAt)
+      updatedLabel: formatDate(doc.updatedAt),
+      swipeOffset: 0
     };
   },
 
@@ -43,6 +48,12 @@ Page({
     if (this.data.batchMode) {
       return;
     }
+
+    if (this.data.swipeId) {
+      this.closeSwipe();
+      return;
+    }
+
     const { id } = event.currentTarget.dataset;
     wx.navigateTo({
       url: `/pages/editor/index?id=${id}`
@@ -53,7 +64,8 @@ Page({
     this.setData({
       batchMode: !this.data.batchMode,
       selectedIds: [],
-      swipeId: ''
+      swipeId: '',
+      docs: this.resetSwipeOffsets()
     });
   },
 
@@ -87,23 +99,60 @@ Page({
   },
 
   onTouchStart(event) {
+    if (this.data.batchMode) {
+      return;
+    }
+
+    const { id } = event.currentTarget.dataset;
+    const hasOpenItem = this.data.swipeId && this.data.swipeId !== id;
+
     this.setData({
-      touchStartX: event.changedTouches[0].clientX
+      touchStartX: event.changedTouches[0].clientX,
+      touchCurrentX: event.changedTouches[0].clientX,
+      swipeId: hasOpenItem ? '' : this.data.swipeId,
+      docs: hasOpenItem ? this.resetSwipeOffsets() : this.data.docs
+    });
+  },
+
+  onTouchMove(event) {
+    if (this.data.batchMode) {
+      return;
+    }
+
+    const { id } = event.currentTarget.dataset;
+    const moveX = event.changedTouches[0].clientX - this.data.touchStartX;
+    const currentOffset = moveX < 0
+      ? Math.min(this.data.swipeMaxOffset, Math.abs(moveX))
+      : 0;
+
+    this.setData({
+      touchCurrentX: event.changedTouches[0].clientX,
+      docs: this.data.docs.map((doc) => ({
+        ...doc,
+        swipeOffset: doc.id === id ? currentOffset : 0
+      }))
     });
   },
 
   onTouchEnd(event) {
-    const moveX = event.changedTouches[0].clientX - this.data.touchStartX;
     const { id } = event.currentTarget.dataset;
+    const moveX = event.changedTouches[0].clientX - this.data.touchStartX;
+    const shouldOpen = moveX < -this.data.swipeThreshold;
+
     this.setData({
-      swipeId: moveX < -60 ? id : ''
+      swipeId: shouldOpen ? id : '',
+      docs: this.data.docs.map((doc) => ({
+        ...doc,
+        swipeOffset: doc.id === id && shouldOpen ? this.data.swipeMaxOffset : 0
+      }))
     });
   },
 
   closeSwipe() {
     if (this.data.swipeId) {
       this.setData({
-        swipeId: ''
+        swipeId: '',
+        docs: this.resetSwipeOffsets()
       });
     }
   },
@@ -113,7 +162,7 @@ Page({
     wx.showModal({
       title: '删除文件',
       content: '删除后无法恢复，确定继续吗？',
-      confirmColor: '#be123c',
+      confirmColor: '#1b2129',
       success: (res) => {
         if (!res.confirm) {
           return;
@@ -128,5 +177,12 @@ Page({
     });
   },
 
-  noop() {}
+  noop() {},
+
+  resetSwipeOffsets() {
+    return this.data.docs.map((doc) => ({
+      ...doc,
+      swipeOffset: 0
+    }));
+  }
 });

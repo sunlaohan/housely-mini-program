@@ -1,7 +1,7 @@
 page {
   min-height: 100%;
-  background: linear-gradient(180deg, #fff7ed 0%, #f8fafc 22%, #f8fafc 100%);
-  color: #0f172a;
+  background: #f7f9fa;
+  color: #1b2129;
   font-family: "PingFang SC", "Helvetica Neue", sans-serif;
 }
 
@@ -16,10 +16,10 @@ page {
 .empty-card,
 .form-card,
 .profile-card {
-  background: rgba(255, 255, 255, 0.94);
-  border: 2rpx solid rgba(251, 146, 60, 0.16);
+  background: rgba(255, 255, 255, 0.96);
+  border: 2rpx solid #e1e5eb;
   border-radius: 32rpx;
-  box-shadow: 0 18rpx 48rpx rgba(15, 23, 42, 0.06);
+  box-shadow: 0 18rpx 48rpx rgba(27, 33, 41, 0.05);
 }
 
 .hero-card,
@@ -34,12 +34,13 @@ page {
   font-size: 52rpx;
   font-weight: 700;
   line-height: 1.1;
+  letter-spacing: 1rpx;
 }
 
 .page-subtitle {
   margin-top: 16rpx;
   font-size: 26rpx;
-  color: #64748b;
+  color: #6f7a86;
   line-height: 1.7;
 }
 
@@ -49,7 +50,7 @@ page {
 }
 
 .muted {
-  color: #64748b;
+  color: #7b8591;
 }
 
 .field {
@@ -60,7 +61,7 @@ page {
   display: block;
   margin-bottom: 14rpx;
   font-size: 24rpx;
-  color: #475569;
+  color: #5f6a75;
 }
 
 .field-input,
@@ -68,10 +69,11 @@ page {
   width: 100%;
   padding: 0 24rpx;
   border-radius: 24rpx;
-  background: #fff;
-  border: 2rpx solid #e2e8f0;
+  background: #f7f9fa;
+  border: 2rpx solid #e1e5eb;
   box-sizing: border-box;
   font-size: 28rpx;
+  color: #1b2129;
 }
 
 .field-input {
@@ -89,28 +91,29 @@ page {
 .ghost-btn,
 .danger-btn {
   height: 88rpx;
-  border-radius: 999rpx;
+  border-radius: 24rpx;
   font-size: 28rpx;
   display: flex;
   align-items: center;
   justify-content: center;
+  border: 0;
 }
 
 .primary-btn {
-  background: linear-gradient(135deg, #ea580c, #f97316);
+  background: #1b2129;
   color: #fff;
 }
 
 .ghost-btn {
-  background: #fff;
-  color: #c2410c;
-  border: 2rpx solid rgba(194, 65, 12, 0.2);
+  background: #e1e5eb;
+  color: #1b2129;
+  border: 2rpx solid #e1e5eb;
 }
 
 .danger-btn {
-  background: #fff1f2;
-  color: #be123c;
-  border: 2rpx solid rgba(190, 18, 60, 0.14);
+  background: #1b2129;
+  color: #fff;
+  border: 2rpx solid #1b2129;
 }
 
 .btn-row {
@@ -128,5 +131,5 @@ page {
   display: flex;
   justify-content: space-between;
   font-size: 24rpx;
-  color: #c2410c;
+  color: #1b2129;
 }

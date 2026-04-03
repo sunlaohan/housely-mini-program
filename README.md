@@ -7,7 +7,7 @@
 - 修改密码、修改密保、修改头像
 - 退出登录、注销账号
 - 首页文件列表、空状态、批量删除、左滑删除
-- 扫描/导入后生成 Markdown 草稿并保存到首页
+- 扫描/导入后上传云存储，创建 OCR 任务，轮询结果并回填 Markdown 草稿
 
 ## 目录
 
@@ -18,6 +18,8 @@
 - `utils/account.js`：账号存储逻辑
 - `utils/docs.js`：文档存储逻辑
 - `utils/scanner.js`：扫描转 Markdown 适配层
+- `cloudfunctions/ocr`：OCR 任务云函数
+- `services/mineru_worker`：真实 MinerU HTTP 适配服务
 
 ## 云开发开通
 
@@ -52,19 +54,28 @@
 - 修改头像
 - 注销账号
 
+OCR 任务还需要部署云函数 `ocr`：
+
+1. 在开发者工具左侧找到 `cloudfunctions/ocr`
+2. 右键 `ocr`
+3. 选择“上传并部署：云端安装依赖”
+4. 等待部署完成后重新编译
+
 并且会把密码、密保答案改成哈希存储；你之前已经创建过的明文测试账号，也会在首次成功登录或校验后自动迁移。
 
 ## 数据集合
 
-请先在微信开发者工具的“云开发”或云控制台里手动创建两个集合：
+请先在微信开发者工具的“云开发”或云控制台里手动创建三个集合：
 
 - `users`
 - `documents`
+- `ocr_tasks`
 
 推荐现在改成下面这样：
 
 - `users`：所有用户不可读写
 - `documents`：仅创建者可读写
+- `ocr_tasks`：仅创建者可读写
 
 这样更符合当前代码结构：
 
@@ -78,17 +89,29 @@
 1. 把 `users` 集合权限改成自定义安全规则，避免任意用户读取全部账号资料。
 2. 用云函数处理注册、登录、修改密码、注销账号，避免密码逻辑直接暴露在前端。
 3. 对密码和密保答案做哈希存储，不再以明文写入数据库。
-4. 把扫描 OCR 接到云函数或后端服务，统一处理上传和识别。
+4. 把 `config/ocr.js` 的演示模式关闭，改为真实 MinerU worker。
 
 ## 扫描转 Markdown 接入建议
 
-小程序端不适合直接内置大型 OCR/文档理解模型，当前项目把扫描逻辑抽象在 `utils/scanner.js`，默认使用文件/图片选择后生成 Markdown 草稿。后续推荐接：
+小程序端不适合直接内置大型 OCR/文档理解模型，当前项目已经把 OCR 流程抽象成任务流：
+
+1. 小程序选择文件
+2. 上传到云存储
+3. 云函数 `ocr` 创建任务到 `ocr_tasks`
+4. 编辑页轮询任务状态
+5. 任务成功后回填 Markdown
+
+当前仓库默认仍是演示模式，但控制开关已经迁到服务端：
+
+- [`cloudfunctions/ocr/config.js`](./cloudfunctions/ocr/config.js)
+- `mode: 'mock'` 表示回填演示 Markdown
+- `mode: 'http'` 表示调用真实 MinerU 适配服务
+
+后续推荐接：
 
 - `opendatalab/MinerU`：更适合 PDF / 文档转 Markdown
 - `PaddlePaddle/PaddleOCR`：更适合图片 OCR 识别
 
-推荐做法是：
+真实 MinerU 接入说明见：
 
-1. 小程序上传图片或文件到你的服务端。
-2. 服务端调用 MinerU 或 PaddleOCR 进行识别。
-3. 返回 Markdown 文本给小程序，并回填到编辑页。
+- `services/mineru_worker/README.md`

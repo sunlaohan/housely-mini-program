@@ -11,24 +11,28 @@
   ],
   "window": {
     "navigationBarTitleText": "Housely Docs",
-    "navigationBarBackgroundColor": "#fff7ed",
+    "navigationBarBackgroundColor": "#F7F9FA",
     "navigationBarTextStyle": "black",
-    "backgroundColor": "#f8fafc",
+    "backgroundColor": "#F7F9FA",
     "backgroundTextStyle": "light"
   },
   "tabBar": {
-    "color": "#64748b",
-    "selectedColor": "#c2410c",
-    "backgroundColor": "#ffffff",
+    "color": "#7B8591",
+    "selectedColor": "#1B2129",
+    "backgroundColor": "#FFFFFF",
     "borderStyle": "black",
     "list": [
       {
         "pagePath": "pages/home/index",
-        "text": "首页"
+        "text": "首页",
+        "iconPath": "assets/tabbar/home.png",
+        "selectedIconPath": "assets/tabbar/home-active.png"
       },
       {
         "pagePath": "pages/profile/index",
-        "text": "个人中心"
+        "text": "个人中心",
+        "iconPath": "assets/tabbar/profile.png",
+        "selectedIconPath": "assets/tabbar/profile-active.png"
       }
     ]
   },

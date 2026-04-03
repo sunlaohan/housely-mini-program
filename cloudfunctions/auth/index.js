@@ -8,6 +8,7 @@ cloud.init({
 const db = cloud.database();
 const users = db.collection('users');
 const documents = db.collection('documents');
+const ocrTasks = db.collection('ocr_tasks');
 
 function sanitizeUser(user) {
   if (!user) {
@@ -264,8 +265,12 @@ async function handleDeleteAccount(event) {
   const { data } = await documents.where({
     userId: user._id
   }).get();
+  const { data: taskData } = await ocrTasks.where({
+    userId: user._id
+  }).get();
 
   await Promise.all(data.map((doc) => documents.doc(doc._id).remove()));
+  await Promise.all(taskData.map((task) => ocrTasks.doc(task._id).remove()));
   await users.doc(user._id).remove();
 
   return { ok: true };

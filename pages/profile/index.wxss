@@ -7,13 +7,14 @@
   width: 136rpx;
   height: 136rpx;
   border-radius: 50%;
+  border: 2rpx solid #e1e5eb;
 }
 
 .avatar-fallback {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #fdba74, #fb7185);
+  background: #1b2129;
   color: #fff;
   font-size: 48rpx;
   font-weight: 700;
@@ -32,7 +33,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 2rpx solid #f1f5f9;
+  border-bottom: 2rpx solid #e1e5eb;
   font-size: 28rpx;
 }
 
@@ -41,9 +42,9 @@
 }
 
 .action-arrow {
-  color: #94a3b8;
+  color: #7b8591;
 }
 
 .danger {
-  color: #be123c;
+  color: #1b2129;
 }

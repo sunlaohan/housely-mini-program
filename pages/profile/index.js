@@ -63,7 +63,7 @@ Page({
     wx.showModal({
       title: '注销账号',
       content: '注销后会删除该账号及全部文档，本地数据无法恢复，确定继续吗？',
-      confirmColor: '#be123c',
+      confirmColor: '#1b2129',
       success: async (res) => {
         if (!res.confirm) {
           return;

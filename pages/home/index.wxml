@@ -27,12 +27,12 @@
     <block wx:else>
       <checkbox-group bindchange="onSelectChange">
         <block wx:for="{{docs}}" wx:key="id">
-          <view class="swipe-shell" catchtap="noop" data-id="{{item.id}}" bindtouchstart="onTouchStart" bindtouchend="onTouchEnd">
-            <view class="delete-action {{swipeId === item.id ? 'show' : ''}}">
+          <view class="swipe-shell" catchtap="noop" data-id="{{item.id}}" bindtouchstart="onTouchStart" bindtouchmove="onTouchMove" bindtouchend="onTouchEnd">
+            <view class="delete-action">
               <button class="delete-btn" data-id="{{item.id}}" bindtap="confirmDelete">删除</button>
             </view>
 
-            <view class="doc-card {{swipeId === item.id ? 'shift' : ''}}" data-id="{{item.id}}" bindtap="openDoc">
+            <view class="doc-card" style="transform: translateX(-{{item.swipeOffset || 0}}rpx);" data-id="{{item.id}}" bindtap="openDoc">
               <view class="doc-main">
                 <checkbox wx:if="{{batchMode}}" class="doc-checkbox" value="{{item.id}}" />
                 <view class="doc-content">
