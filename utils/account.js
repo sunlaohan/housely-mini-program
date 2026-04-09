@@ -6,48 +6,44 @@ function sanitizeUser(user) {
   }
 
   return {
-    id: user.id || user._id,
-    username: user.username,
+    id: user.id || user._id || '',
+    username: user.username || '',
     avatar: user.avatar || '',
-    securityQuestion: user.securityQuestion || '',
     createdAt: user.createdAt || ''
   };
 }
 
 async function callAuth(action, payload = {}) {
-  const result = await wx.cloud.callFunction({
-    name: 'auth',
-    data: {
-      action,
-      ...payload
-    }
-  });
+  try {
+    const result = await wx.cloud.callFunction({
+      name: 'auth',
+      data: {
+        action,
+        ...payload
+      }
+    });
 
-  return result.result || {};
-}
-
-async function findUser(username) {
-  const result = await callAuth('getSecurityQuestion', { username });
-  if (!result.ok) {
-    return null;
+    return result.result || {};
+  } catch (error) {
+    console.error('callAuth failed', action, payload, error);
+    throw error;
   }
-
-  return {
-    username,
-    securityQuestion: result.securityQuestion || ''
-  };
 }
 
-async function registerAccount(payload) {
-  const result = await callAuth('register', payload);
+async function loginWithUsername(username) {
+  const result = await callAuth('loginOrCreate', { username });
   if (result.ok && result.user) {
     write(KEYS.SESSION, sanitizeUser(result.user));
   }
   return result;
 }
 
-async function loginAccount(username, password) {
-  const result = await callAuth('login', { username, password });
+async function updateAvatar(username, avatar) {
+  const result = await callAuth('updateAvatar', {
+    username,
+    avatar
+  });
+
   if (result.ok && result.user) {
     write(KEYS.SESSION, sanitizeUser(result.user));
   }
@@ -73,48 +69,6 @@ function logout() {
   remove(KEYS.SESSION);
 }
 
-async function resetPassword(username, answer, nextPassword) {
-  return callAuth('resetPassword', {
-    username,
-    securityAnswer: answer,
-    nextPassword
-  });
-}
-
-async function updatePassword(username, oldPassword, nextPassword) {
-  return callAuth('updatePassword', {
-    username,
-    oldPassword,
-    nextPassword
-  });
-}
-
-async function updateSecurity(username, password, securityQuestion, securityAnswer) {
-  const result = await callAuth('updateSecurity', {
-    username,
-    password,
-    securityQuestion,
-    securityAnswer
-  });
-
-  if (result.ok && result.user) {
-    write(KEYS.SESSION, sanitizeUser(result.user));
-  }
-  return result;
-}
-
-async function updateAvatar(username, avatar) {
-  const result = await callAuth('updateAvatar', {
-    username,
-    avatar
-  });
-
-  if (result.ok && result.user) {
-    write(KEYS.SESSION, sanitizeUser(result.user));
-  }
-  return result;
-}
-
 async function deleteAccount(user) {
   const result = await callAuth('deleteAccount', {
     userId: user.id,
@@ -130,14 +84,9 @@ async function deleteAccount(user) {
 
 module.exports = {
   deleteAccount,
-  findUser,
   getCurrentUser,
-  loginAccount,
+  loginWithUsername,
   logout,
-  registerAccount,
   requireAuth,
-  resetPassword,
-  updateAvatar,
-  updatePassword,
-  updateSecurity
+  updateAvatar
 };

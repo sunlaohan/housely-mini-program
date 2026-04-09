@@ -1,16 +1,12 @@
 {
   "pages": [
     "pages/auth/login/index",
-    "pages/auth/register/index",
-    "pages/auth/reset/index",
     "pages/home/index",
     "pages/editor/index",
-    "pages/profile/index",
-    "pages/profile/password/index",
-    "pages/profile/security/index"
+    "pages/profile/index"
   ],
   "window": {
-    "navigationBarTitleText": "Housely Docs",
+    "navigationBarTitleText": "家物小记",
     "navigationBarBackgroundColor": "#F7F9FA",
     "navigationBarTextStyle": "black",
     "backgroundColor": "#F7F9FA",

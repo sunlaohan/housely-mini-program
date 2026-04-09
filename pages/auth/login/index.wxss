@@ -1,3 +1,242 @@
-.form-card {
-  margin-top: 24rpx;
+/* ================================================================
+   登录页面样式 - 严格对照 Figma 设计稿
+   ================================================================ */
+
+/* 页面整体：column + space-between，背景 Grey/Grey 100 */
+.login-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: #f1f4f6;
+  box-sizing: border-box;
+}
+
+/* ---- 品牌区 ---- */
+.login-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 80rpx;
+  gap: 32rpx;
+}
+
+/* img-login 容器 */
+.brand-illustration {
+  width: 632rpx;
+}
+
+/* ---- 表单区 ---- */
+/* Frame 1: padding 0 24px 48px, column, gap 12px, stretch */
+.login-form {
+  flex: 1;
+  padding: 80rpx 48rpx 96rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 24rpx;
+}
+
+/* 输入组 */
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
+
+/* 覆盖 app.wxss 中 .field-label 的全局样式 */
+.login-page .field-label {
+  display: block;
+  margin-bottom: 0;
+  font-size: 28rpx;
+  line-height: 44rpx;
+  color: #1b2129;
+  font-weight: 400;
+}
+
+/* 输入框 */
+.login-input {
+  width: 100%;
+  height: 80rpx;
+  padding: 0 32rpx;
+  border: none;
+  border-radius: 16rpx;
+  background: #ffffff;
+  font-size: 28rpx;
+  line-height: 44rpx;
+  color: #1b2129;
+  box-sizing: border-box;
+}
+
+.login-placeholder {
+  color: #c4c9cf;
+  font-size: 28rpx;
+}
+
+.login-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+  width: 100%;
+  margin-top: auto;
+}
+
+/* ===== 重置微信小程序 button 默认样式 ===== */
+.login-buttons button {
+  /* 清除默认 margin（微信按钮默认有左右 margin） */
+  margin: 0;
+  padding: 0 30rpx;
+  /* 强制全宽填充 */
+  width: 100% !important;
+  /* 固定高度 44px = 88rpx */
+  height: 88rpx;
+  /* 圆角 8px = 16rpx */
+  border-radius: 16rpx;
+  border: none;
+  /* 文本样式 14/Regular */
+  font-size: 28rpx;
+  font-weight: 400;
+  line-height: 88rpx;
+  text-align: center;
+  /* 内部 flex 布局居中 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+/* 清除微信 button::after 的默认边框 */
+.login-buttons button::after {
+  display: none;
+}
+
+/* 登录按钮：深色背景 Grey/Grey 900，白色文字 */
+.btn-login {
+  background: #1b2129 !important;
+  color: #ffffff !important;
+}
+
+/* 关于按钮：白色背景，深色文字 */
+.btn-about {
+  background: #ffffff !important;
+  color: #1b2129 !important;
+  gap: 12rpx;
+}
+
+/* 关于图标 18×18 → 36rpx */
+.info-icon {
+  width: 36rpx;
+  height: 36rpx;
+  flex-shrink: 0;
+}
+
+/* ================================================================
+   关于家物小记 - 底部弹出面板
+   ================================================================ */
+
+/* ---- 遮罩层 ---- */
+.about-mask {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0);
+  transition: background 0.3s ease;
+}
+
+.about-mask--show {
+  background: rgba(0, 0, 0, 0.7);
+}
+
+/* ---- 面板容器 ---- */
+.about-panel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  /* Figma: 面板顶部留 96px 空间，面板占剩余高度 */
+  top: 192rpx;
+  background: #f7f9fa;
+  border-radius: 32rpx 32rpx 0 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  /* 初始态：隐藏在屏幕底部 */
+  transform: translateY(100%);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.about-panel--show {
+  transform: translateY(0);
+}
+
+/* ---- 导航栏 ---- */
+.about-navbar {
+  display: flex;
+  align-items: center;
+  height: 92rpx;
+  flex-shrink: 0;
+}
+
+.about-navbar__left {
+  width: 156rpx;
+  height: 92rpx;
+  display: flex;
+  align-items: center;
+  padding-left: 32rpx;
+  box-sizing: border-box;
+}
+
+.about-close-icon {
+  width: 44rpx;
+  height: 44rpx;
+}
+
+.about-navbar__title {
+  flex: 1;
+  text-align: center;
+  font-size: 32rpx;
+  font-weight: 600;
+  line-height: 48rpx;
+  color: #1b2129;
+}
+
+.about-navbar__right {
+  width: 156rpx;
+  height: 92rpx;
+}
+
+/* ---- 内容区（scroll-view 需要明确高度） ---- */
+.about-scroll {
+  flex: 1;
+  height: 0;
+  padding: 32rpx 48rpx 0;
+  box-sizing: border-box;
+}
+
+/* 视频 Banner */
+.about-video-wrap {
+  width: 100%;
+  height: 436rpx;
+  border-radius: 16rpx;
+  overflow: hidden;
+}
+
+.about-video {
+  width: 100%;
+  height: 100%;
+}
+
+/* 介绍文字 */
+.about-text {
+  padding: 32rpx 0 80rpx;
+  word-wrap: break-word;
+  word-break: break-all;
+}
+
+.about-text text {
+  font-size: 28rpx;
+  font-weight: 400;
+  line-height: 1.57;
+  color: #626c78;
 }

@@ -1,3 +1,9 @@
 {
-  "rules": []
+  "desc": "Housely Docs sitemap",
+  "rules": [
+    {
+      "action": "allow",
+      "page": "*"
+    }
+  ]
 }

@@ -31,7 +31,7 @@ Page({
       }
 
       try {
-        const doc = await getDocumentById(user.id, options.id);
+        const doc = await getDocumentById(user, options.id);
         if (!doc) {
           wx.showToast({ title: '文件不存在', icon: 'none' });
           return;
@@ -53,7 +53,7 @@ Page({
         });
 
         wx.setNavigationBarTitle({
-          title: '编辑 Markdown'
+          title: '编辑识别结果'
         });
       } catch (error) {
         wx.showToast({ title: '加载文件失败', icon: 'none' });
@@ -72,6 +72,10 @@ Page({
     const nextData = {
       ocrStatus: progress.stage || this.data.ocrStatus
     };
+
+    if (['uploading', 'created', 'processing', 'polling'].includes(progress.stage)) {
+      nextData.isScanning = true;
+    }
 
     if (progress.message) {
       nextData.ocrMessage = progress.message;
@@ -93,13 +97,15 @@ Page({
 
     try {
       this.setData({
-        isScanning: true,
-        ocrStatus: 'uploading',
-        ocrMessage: '正在准备识别任务',
+        isScanning: false,
+        ocrStatus: '',
+        ocrMessage: '',
         sourceName: '',
         sourceType: '',
         sourceFileId: '',
         ocrTaskId: '',
+        ocrProvider: '',
+        description: '',
         markdown: ''
       });
 
@@ -114,7 +120,7 @@ Page({
         ocrTaskId: draft.ocrTaskId || '',
         ocrProvider: draft.ocrProvider || '',
         ocrStatus: draft.ocrStatus || 'success',
-        ocrMessage: 'OCR 识别完成，已回填 Markdown 草稿',
+        ocrMessage: 'OCR 识别完成，已回填识别内容',
         name: draft.name,
         description: draft.description,
         markdown: draft.markdown
@@ -194,7 +200,7 @@ Page({
         ocrTaskId: draft.ocrTaskId || '',
         ocrProvider: draft.ocrProvider || '',
         ocrStatus: draft.ocrStatus || 'success',
-        ocrMessage: 'OCR 识别完成，已回填最新结果',
+        ocrMessage: 'OCR 识别完成，已回填最新识别内容',
         name: this.data.name || draft.name,
         description: draft.description,
         markdown: draft.markdown
@@ -246,13 +252,13 @@ Page({
     }
 
     if (!name || !markdown) {
-      wx.showToast({ title: '请先生成并完善 Markdown 内容', icon: 'none' });
+      wx.showToast({ title: '请先生成并完善识别内容', icon: 'none' });
       return;
     }
 
     try {
       if (mode === 'edit') {
-        await updateDocument(currentUser.id, docId, {
+        await updateDocument(currentUser, docId, {
           name: name.trim(),
           description: description.trim(),
           markdown,
@@ -264,7 +270,7 @@ Page({
           ocrStatus
         });
       } else {
-        await addDocument(currentUser.id, {
+        await addDocument(currentUser, {
           name: name.trim(),
           description: description.trim(),
           markdown,

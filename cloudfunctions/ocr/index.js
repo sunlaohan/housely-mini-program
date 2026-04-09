@@ -11,6 +11,7 @@ cloud.init({
 const db = cloud.database();
 const _ = db.command;
 const tasks = db.collection('ocr_tasks');
+const SUPPORTED_MODES = ['mock', 'official', 'http', 'auto'];
 
 function sanitizeTask(task) {
   if (!task) {
@@ -19,6 +20,7 @@ function sanitizeTask(task) {
 
   return {
     id: task._id || task.id,
+    ownerKey: task.ownerKey || task.username || task.userId || '',
     userId: task.userId,
     provider: task.provider || ocrConfig.provider || 'WeChat OCR',
     status: task.status || 'pending',
@@ -35,24 +37,34 @@ function sanitizeTask(task) {
   };
 }
 
-function makeMockMarkdown(sourceName, sourceType) {
+function getEventOwner(event) {
+  return {
+    ownerKey: String((event && event.ownerKey) || '').trim(),
+    legacyUserId: String((event && event.userId) || '').trim()
+  };
+}
+
+function isTaskOwnedBy(task, event) {
+  const { ownerKey, legacyUserId } = getEventOwner(event);
+  return Boolean(
+    (ownerKey && (task.ownerKey === ownerKey || task.username === ownerKey)) ||
+    (legacyUserId && task.userId === legacyUserId)
+  );
+}
+
+function makeMockContent(sourceName, sourceType) {
   const title = (sourceName || '未命名扫描件').replace(/\.[^.]+$/, '');
 
-  return `# ${title}
-
-## 文档信息
-- OCR 引擎：MinerU
-- 来源：${sourceType === 'image' ? '图片扫描' : '文件导入'}
-- 状态：自动识别完成，建议人工复核
-
-## 识别摘要
-这是一份通过 OCR 任务流生成的 Markdown 草稿。当前项目已经接入上传、任务创建、状态轮询与结果回填能力。
-
-## 建议整理项
-1. 检查标题层级是否准确
-2. 核对关键数字与专有名词
-3. 如含表格，可按原版式进一步微调
-`;
+  return [
+    `文件标题：${title}`,
+    `识别引擎：MinerU 演示模式`,
+    `来源类型：${sourceType === 'image' ? '图片扫描' : '文件导入'}`,
+    '',
+    '这是一份演示识别结果，用于验证上传、任务创建、状态轮询与结果回填流程。',
+    '切换到微信 OCR 或 HTTP OCR 服务后，这里会显示真实识别文本。',
+    '',
+    '建议人工复核关键数字、专有名词与换行位置。'
+  ].join('\n');
 }
 
 function extractPrintedText(result) {
@@ -95,6 +107,38 @@ function extractPrintedText(result) {
   }
 
   return '';
+}
+
+function getOcrMode() {
+  const mode = typeof ocrConfig.mode === 'string' ? ocrConfig.mode.trim() : '';
+  return SUPPORTED_MODES.includes(mode) ? mode : 'mock';
+}
+
+function hasConfiguredHttpService() {
+  const endpoint = ocrConfig.service && typeof ocrConfig.service.endpoint === 'string'
+    ? ocrConfig.service.endpoint.trim()
+    : '';
+
+  return Boolean(endpoint) && !endpoint.includes('YOUR_SERVER_IP');
+}
+
+function isQuotaExceededError(error) {
+  const message = error && error.message ? String(error.message) : '';
+  return message.includes('101003') || message.includes('not enough market quota');
+}
+
+function normalizeOfficialOcrError(error) {
+  const message = error && error.message ? String(error.message) : '';
+
+  if (isQuotaExceededError(error)) {
+    return '微信官方 OCR 配额已用尽，请改用 HTTP OCR 服务，或切回 mock 模式后重新部署云函数';
+  }
+
+  if (message.includes('invalid img url')) {
+    return '微信官方 OCR 无法访问当前图片链接，请稍后重试';
+  }
+
+  return message || '微信官方 OCR 调用失败';
 }
 
 function requestJson(urlString, options = {}, payload) {
@@ -165,6 +209,7 @@ async function getTaskById(taskId) {
 
 async function handleCreateTask(event) {
   const {
+    ownerKey,
     userId,
     sourceName,
     sourceType,
@@ -173,13 +218,18 @@ async function handleCreateTask(event) {
     fileSize
   } = event;
 
-  if (!userId || !sourceName || !sourceFileId) {
+  const normalizedOwnerKey = String(ownerKey || '').trim();
+  const legacyUserId = String(userId || '').trim();
+
+  if ((!normalizedOwnerKey && !legacyUserId) || !sourceName || !sourceFileId) {
     return { ok: false, message: '创建 OCR 任务缺少必要参数' };
   }
 
   const now = new Date();
   const payload = {
-    userId,
+    ownerKey: normalizedOwnerKey || legacyUserId,
+    username: normalizedOwnerKey || '',
+    userId: legacyUserId,
     provider: ocrConfig.provider || 'WeChat OCR',
     status: 'pending',
     sourceName,
@@ -209,13 +259,14 @@ async function handleCreateTask(event) {
 }
 
 async function handleGetTask(event) {
-  const { taskId, userId } = event;
-  if (!taskId || !userId) {
+  const { taskId } = event;
+  const { ownerKey, legacyUserId } = getEventOwner(event);
+  if (!taskId || (!ownerKey && !legacyUserId)) {
     return { ok: false, message: '查询 OCR 任务缺少必要参数' };
   }
 
   const task = await getTaskById(taskId);
-  if (!task || task.userId !== userId) {
+  if (!task || !isTaskOwnedBy(task, event)) {
     return { ok: false, message: '任务不存在或无权限访问' };
   }
 
@@ -236,12 +287,12 @@ async function handleSubmitResult(event) {
     errorMessage
   } = event;
 
-  if (!taskId || !userId) {
+  if (!taskId || (!event.ownerKey && !event.userId)) {
     return { ok: false, message: '回写 OCR 任务缺少必要参数' };
   }
 
   const task = await getTaskById(taskId);
-  if (!task || task.userId !== userId) {
+  if (!task || !isTaskOwnedBy(task, event)) {
     return { ok: false, message: '任务不存在或无权限访问' };
   }
 
@@ -267,25 +318,26 @@ async function handleSubmitResult(event) {
 }
 
 async function handleMockCompleteTask(event) {
-  const { taskId, userId } = event;
-  if (!taskId || !userId) {
+  const { taskId } = event;
+  if (!taskId || (!event.ownerKey && !event.userId)) {
     return { ok: false, message: '模拟 OCR 缺少必要参数' };
   }
 
   const task = await getTaskById(taskId);
-  if (!task || task.userId !== userId) {
+  if (!task || !isTaskOwnedBy(task, event)) {
     return { ok: false, message: '任务不存在或无权限访问' };
   }
 
   const data = {
     status: 'success',
-    markdown: makeMockMarkdown(task.sourceName, task.sourceType),
+    provider: 'MinerU',
+    markdown: makeMockContent(task.sourceName, task.sourceType),
     rawJson: _.set({
       mock: true,
       sourceName: task.sourceName,
       provider: 'MinerU'
     }),
-    summary: '已通过内置演示模式生成 Markdown 草稿',
+    summary: '已通过内置演示模式生成演示识别内容',
     errorMessage: '',
     updatedAt: new Date()
   };
@@ -301,154 +353,167 @@ async function handleMockCompleteTask(event) {
   };
 }
 
-async function handleProcessTask(event) {
-  const { taskId, userId } = event;
+async function getSourceTempUrl(sourceFileId) {
+  const tempFile = await cloud.getTempFileURL({
+    fileList: [sourceFileId]
+  });
 
-  if (!taskId || !userId) {
+  return tempFile.fileList && tempFile.fileList[0] && tempFile.fileList[0].tempFileURL;
+}
+
+async function processTaskWithOfficial(taskId, task, tempUrl) {
+  const officialResult = await cloud.openapi.ocr.printedText({
+    type: 'photo',
+    imgUrl: tempUrl
+  });
+
+  const plainText = extractPrintedText(officialResult);
+  if (!plainText) {
+    throw new Error('微信官方 OCR 已返回结果，但未提取到文本内容');
+  }
+
+  const successTask = await markTask(taskId, {
+    status: 'success',
+    provider: 'WeChat OCR',
+    markdown: plainText,
+    rawJson: _.set(officialResult || {}),
+    summary: '已通过微信官方 OCR 提取图片文本',
+    errorMessage: '',
+    updatedAt: new Date()
+  }, task);
+
+  return {
+    ok: true,
+    task: successTask
+  };
+}
+
+async function processTaskWithHttp(taskId, task, tempUrl) {
+  if (!hasConfiguredHttpService()) {
+    return { ok: false, message: '未配置真实 OCR 服务地址，请先更新 cloudfunctions/ocr/config.js' };
+  }
+
+  const payload = JSON.stringify({
+    taskId,
+    ownerKey: task.ownerKey || task.username || task.userId,
+    userId: task.userId,
+    provider: ocrConfig.provider,
+    sourceName: task.sourceName,
+    sourceType: task.sourceType,
+    sourceFileId: task.sourceFileId,
+    sourceCloudPath: task.sourceCloudPath,
+    fileUrl: tempUrl
+  });
+
+  const headers = {
+    'Content-Type': 'application/json',
+    'Content-Length': Buffer.byteLength(payload)
+  };
+
+  if (ocrConfig.service.bearerToken) {
+    headers.Authorization = `Bearer ${ocrConfig.service.bearerToken}`;
+  }
+
+  const result = await requestJson(ocrConfig.service.endpoint, {
+    method: 'POST',
+    headers
+  }, payload);
+
+  if (!result.ok) {
+    const failedTask = await markTask(taskId, {
+      status: 'failed',
+      errorMessage: result.message || 'OCR 服务处理失败',
+      updatedAt: new Date()
+    }, task);
+
+    return {
+      ok: false,
+      message: failedTask.errorMessage,
+      task: failedTask
+    };
+  }
+
+  if (!result.markdown) {
+    return {
+      ok: true,
+      task: task
+    };
+  }
+
+  const successTask = await markTask(taskId, {
+    status: 'success',
+    provider: ocrConfig.provider || task.provider,
+    markdown: result.markdown,
+    rawJson: _.set(result.rawJson || {}),
+    summary: result.summary || '识别完成',
+    errorMessage: '',
+    updatedAt: new Date()
+  }, task);
+
+  return {
+    ok: true,
+    task: successTask
+  };
+}
+
+async function handleProcessTask(event) {
+  const { taskId } = event;
+
+  if (!taskId || (!event.ownerKey && !event.userId)) {
     return { ok: false, message: '处理 OCR 任务缺少必要参数' };
   }
 
   const task = await getTaskById(taskId);
-  if (!task || task.userId !== userId) {
+  if (!task || !isTaskOwnedBy(task, event)) {
     return { ok: false, message: '任务不存在或无权限访问' };
   }
 
-  if (ocrConfig.mode === 'mock') {
+  const mode = getOcrMode();
+
+  if (mode === 'mock') {
     return handleMockCompleteTask(event);
   }
 
-  if (ocrConfig.mode === 'official') {
-    try {
-      const tempFile = await cloud.getTempFileURL({
-        fileList: [task.sourceFileId]
-      });
-
-      const tempUrl = tempFile.fileList && tempFile.fileList[0] && tempFile.fileList[0].tempFileURL;
-      if (!tempUrl) {
-        throw new Error('获取云存储临时下载链接失败');
-      }
-
-      const officialResult = await cloud.openapi.ocr.printedText({
-        type: 'photo',
-        imgUrl: tempUrl
-      });
-
-      const plainText = extractPrintedText(officialResult);
-      if (!plainText) {
-        throw new Error('微信官方 OCR 已返回结果，但未提取到文本内容');
-      }
-
-      const successTask = await markTask(taskId, {
-        status: 'success',
-        markdown: plainText,
-        rawJson: _.set(officialResult || {}),
-        summary: '已通过微信官方 OCR 提取图片文本',
-        errorMessage: '',
-        updatedAt: new Date()
-      }, task);
-
-      return {
-        ok: true,
-        task: successTask
-      };
-    } catch (error) {
-      const failedTask = await markTask(taskId, {
-        status: 'failed',
-        errorMessage: error.message || '微信官方 OCR 调用失败',
-        updatedAt: new Date()
-      }, task);
-
-      return {
-        ok: false,
-        message: failedTask.errorMessage,
-        task: failedTask
-      };
-    }
-  }
-
-  if (!ocrConfig.service || !ocrConfig.service.endpoint) {
+  if (mode === 'http' && !hasConfiguredHttpService()) {
     return { ok: false, message: '未配置真实 OCR 服务地址，请先更新 cloudfunctions/ocr/config.js' };
   }
 
   const processingTask = await markTask(taskId, {
     status: 'processing',
+    provider: mode === 'official' ? 'WeChat OCR' : (ocrConfig.provider || task.provider),
     errorMessage: '',
     updatedAt: new Date()
   }, task);
 
   try {
-    const tempFile = await cloud.getTempFileURL({
-      fileList: [task.sourceFileId]
-    });
-
-    const tempUrl = tempFile.fileList && tempFile.fileList[0] && tempFile.fileList[0].tempFileURL;
+    const tempUrl = await getSourceTempUrl(task.sourceFileId);
     if (!tempUrl) {
       throw new Error('获取云存储临时下载链接失败');
     }
 
-    const payload = JSON.stringify({
-      taskId,
-      userId,
-      provider: ocrConfig.provider,
-      sourceName: task.sourceName,
-      sourceType: task.sourceType,
-      sourceFileId: task.sourceFileId,
-      sourceCloudPath: task.sourceCloudPath,
-      fileUrl: tempUrl
-    });
-
-    const headers = {
-      'Content-Type': 'application/json',
-      'Content-Length': Buffer.byteLength(payload)
-    };
-
-    if (ocrConfig.service.bearerToken) {
-      headers.Authorization = `Bearer ${ocrConfig.service.bearerToken}`;
+    if (mode === 'official') {
+      return processTaskWithOfficial(taskId, processingTask, tempUrl);
     }
 
-    const result = await requestJson(ocrConfig.service.endpoint, {
-      method: 'POST',
-      headers
-    }, payload);
-
-    if (!result.ok) {
-      const failedTask = await markTask(taskId, {
-        status: 'failed',
-        errorMessage: result.message || 'OCR 服务处理失败',
-        updatedAt: new Date()
-      }, task);
-
-      return {
-        ok: false,
-        message: failedTask.errorMessage,
-        task: failedTask
-      };
+    if (mode === 'http') {
+      return processTaskWithHttp(taskId, processingTask, tempUrl);
     }
 
-    if (!result.markdown) {
-      return {
-        ok: true,
-        task: processingTask
-      };
+    try {
+      return await processTaskWithOfficial(taskId, processingTask, tempUrl);
+    } catch (officialError) {
+      if (hasConfiguredHttpService()) {
+        return processTaskWithHttp(taskId, processingTask, tempUrl);
+      }
+
+      throw new Error(normalizeOfficialOcrError(officialError));
     }
-
-    const successTask = await markTask(taskId, {
-      status: 'success',
-      markdown: result.markdown,
-      rawJson: _.set(result.rawJson || {}),
-      summary: result.summary || '',
-      errorMessage: '',
-      updatedAt: new Date()
-    }, task);
-
-    return {
-      ok: true,
-      task: successTask
-    };
   } catch (error) {
     const failedTask = await markTask(taskId, {
       status: 'failed',
-      errorMessage: error.message || '调用 OCR 服务失败',
+      errorMessage: mode === 'official'
+        ? normalizeOfficialOcrError(error)
+        : (error.message || '调用 OCR 服务失败'),
       updatedAt: new Date()
     }, task);
 

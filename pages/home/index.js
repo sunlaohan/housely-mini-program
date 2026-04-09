@@ -17,7 +17,7 @@ Page({
   onShow() {
     ensureAuth(this, async (user) => {
       try {
-        const docs = (await getDocuments(user.id)).map(this.decorateDoc);
+        const docs = (await getDocuments(user)).map(this.decorateDoc);
         this.setData({
           currentUser: user,
           docs
@@ -89,7 +89,7 @@ Page({
           return;
         }
 
-        deleteDocuments(this.data.currentUser.id, this.data.selectedIds)
+        deleteDocuments(this.data.currentUser, this.data.selectedIds)
           .then(() => this.onShow())
           .catch(() => {
             wx.showToast({ title: '批量删除失败', icon: 'none' });
@@ -168,7 +168,7 @@ Page({
           return;
         }
 
-        deleteDocument(this.data.currentUser.id, id)
+        deleteDocument(this.data.currentUser, id)
           .then(() => this.onShow())
           .catch(() => {
             wx.showToast({ title: '删除失败', icon: 'none' });

@@ -1,6 +1,6 @@
 module.exports = {
   mode: 'official',
-  provider: 'WeChat OCR',
+  provider: 'MinerU',
   requestTimeoutMs: 120000,
   service: {
     endpoint: 'http://YOUR_SERVER_IP:9000/parse',

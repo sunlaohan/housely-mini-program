@@ -1,9 +1,13 @@
-const { loginAccount } = require('../../../utils/account');
+const { loginWithUsername } = require('../../../utils/account');
 
 Page({
   data: {
     username: '',
-    password: ''
+    isSubmitting: false,
+    aboutShow: false,
+    aboutVisible: false,
+    videoReady: false,
+    nicknameTipShown: false
   },
 
   onShow() {
@@ -22,17 +26,34 @@ Page({
     });
   },
 
+  onUsernameFocus() {
+    if (this.data.nicknameTipShown) {
+      return;
+    }
+
+    this.setData({ nicknameTipShown: true });
+    wx.showToast({
+      title: '可直接使用微信昵称快速填写',
+      icon: 'none'
+    });
+  },
+
   async submitLogin() {
-    const { username, password } = this.data;
-    if (!username || !password) {
-      wx.showToast({ title: '请填写账号和密码', icon: 'none' });
+    if (this.data.isSubmitting) {
+      return;
+    }
+
+    const username = String(this.data.username || '').trim();
+    if (!username) {
+      wx.showToast({ title: '请输入用户名', icon: 'none' });
       return;
     }
 
     try {
-      const result = await loginAccount(username.trim(), password);
+      this.setData({ isSubmitting: true });
+      const result = await loginWithUsername(username);
       if (!result.ok) {
-        wx.showToast({ title: result.message, icon: 'none' });
+        wx.showToast({ title: result.message || '登录失败，请稍后再试', icon: 'none' });
         return;
       }
 
@@ -41,20 +62,31 @@ Page({
         url: '/pages/home/index'
       });
     } catch (error) {
-      wx.showToast({ title: '登录失败，请检查数据表', icon: 'none' });
-      return;
+      console.error('submitLogin failed', error);
+      const message = (error && (error.errMsg || error.message)) || '登录失败，请检查云函数';
+      wx.showToast({ title: message.slice(0, 30), icon: 'none' });
+    } finally {
+      this.setData({ isSubmitting: false });
     }
   },
 
-  goRegister() {
-    wx.navigateTo({
-      url: '/pages/auth/register/index'
-    });
+  showAbout() {
+    this.setData({ aboutShow: true });
+    setTimeout(() => {
+      this.setData({ aboutVisible: true });
+    }, 30);
+    setTimeout(() => {
+      this.setData({ videoReady: true });
+    }, 380);
   },
 
-  goReset() {
-    wx.navigateTo({
-      url: '/pages/auth/reset/index'
-    });
+  hideAbout() {
+    this.setData({ videoReady: false });
+    setTimeout(() => {
+      this.setData({ aboutVisible: false });
+      setTimeout(() => {
+        this.setData({ aboutShow: false });
+      }, 350);
+    }, 50);
   }
 });

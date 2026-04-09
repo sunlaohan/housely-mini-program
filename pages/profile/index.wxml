@@ -15,16 +15,8 @@
   </view>
 
   <view class="panel" style="margin-top: 28rpx;">
-    <view class="section-title">账号安全</view>
+    <view class="section-title">账号管理</view>
     <view class="action-list">
-      <view class="action-item" bindtap="goPassword">
-        <text>修改密码</text>
-        <text class="action-arrow">></text>
-      </view>
-      <view class="action-item" bindtap="goSecurity">
-        <text>修改密保问题</text>
-        <text class="action-arrow">></text>
-      </view>
       <view class="action-item" bindtap="logoutAccount">
         <text>退出登录</text>
         <text class="action-arrow">></text>

@@ -1,26 +1,6 @@
 <view class="page-shell">
-  <view class="hero-card">
-    <view class="page-title">{{mode === 'edit' ? '编辑 Markdown 文件' : '扫描生成 Markdown'}}</view>
-    <view class="page-subtitle">{{mode === 'edit' ? '你可以继续修改名称、描述和 Markdown 内容，保存后会同步回首页列表。' : '支持拍照扫描图片或导入文件。成功后会自动生成 Markdown 草稿，你可以继续修改文件名称和描述后保存。'}}</view>
-  </view>
-
-  <view class="form-card" style="margin-top: 28rpx;">
-    <button class="primary-btn" loading="{{isScanning}}" bindtap="startScan">{{mode === 'edit' ? '重新扫描 / 导入' : '开始扫描 / 导入'}}</button>
-
-    <view wx:if="{{sourceName}}" class="scan-summary">
-      <view class="scan-chip">{{sourceType === 'image' ? '图片扫描' : '文件导入'}}</view>
-      <view class="muted" style="margin-top: 16rpx;">来源文件：{{sourceName}}</view>
-    </view>
-
-    <view wx:if="{{ocrStatus}}" class="ocr-status-card">
-      <view class="ocr-status-top">
-        <view class="scan-chip">{{ocrProvider || 'MinerU'}}</view>
-        <view class="ocr-status-tag status-{{ocrStatus}}">{{ocrStatus === 'success' ? '已完成' : (ocrStatus === 'failed' ? '失败' : '处理中')}}</view>
-      </view>
-      <view class="ocr-status-text">{{ocrMessage || '等待 OCR 结果'}}</view>
-      <view wx:if="{{ocrTaskId}}" class="ocr-task-id">任务号：{{ocrTaskId}}</view>
-      <button wx:if="{{ocrTaskId && ocrStatus !== 'success'}}" class="ghost-btn ocr-refresh-btn" loading="{{isScanning}}" bindtap="refreshOcrResult">查询识别结果</button>
-    </view>
+  <view class="form-card">
+    <button class="primary-btn" loading="{{isScanning}}" bindtap="startScan">{{mode === 'edit' ? '重新拍照 / 上传图片' : '拍照 / 上传图片'}}</button>
 
     <view class="field">
       <text class="field-label">文件名称</text>
@@ -28,13 +8,8 @@
     </view>
 
     <view class="field">
-      <text class="field-label">文件描述</text>
-      <input class="field-input" placeholder="补充文档用途或摘要" data-field="description" bindinput="onInput" value="{{description}}" />
-    </view>
-
-    <view class="field">
-      <text class="field-label">Markdown 内容</text>
-      <textarea class="field-textarea" placeholder="扫描后生成的 Markdown 会显示在这里" data-field="markdown" bindinput="onInput" value="{{markdown}}" />
+      <text class="field-label">识别内容</text>
+      <textarea class="field-textarea" auto-height maxlength="-1" placeholder="扫描后生成的识别文本会显示在这里" data-field="markdown" bindinput="onInput" value="{{markdown}}" />
     </view>
 
     <button class="primary-btn" style="margin-top: 32rpx;" bindtap="saveDocument">{{mode === 'edit' ? '保存修改' : '保存到首页'}}</button>

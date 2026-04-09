@@ -39,18 +39,6 @@ Page({
     });
   },
 
-  goPassword() {
-    wx.navigateTo({
-      url: '/pages/profile/password/index'
-    });
-  },
-
-  goSecurity() {
-    wx.navigateTo({
-      url: '/pages/profile/security/index'
-    });
-  },
-
   logoutAccount() {
     logout();
     getApp().setCurrentUser(null);

@@ -1,25 +1,75 @@
-<view class="page-shell">
-  <view class="hero-card">
-    <view class="page-title">欢迎回到 Housely Docs</view>
-    <view class="page-subtitle">登录后即可管理扫描生成的 Markdown 文档，支持账号注册、密码找回与个人资料维护。</view>
+<view class="login-page">
+  <!-- 品牌区 -->
+  <view class="login-brand">
+    <image class="brand-illustration" src="../../../assets/auth/img-login.svg" mode="widthFix" />
   </view>
 
-  <view class="form-card" style="margin-top: 28rpx;">
-    <view class="field">
+  <!-- 表单区 -->
+  <view class="login-form">
+    <view class="field-group">
       <text class="field-label">账号</text>
-      <input class="field-input" placeholder="请输入账号" data-field="username" bindinput="onInput" value="{{username}}" />
+      <input
+        class="login-input"
+        type="nickname"
+        placeholder="请输入账号"
+        placeholder-class="login-placeholder"
+        data-field="username"
+        bindinput="onInput"
+        bindfocus="onUsernameFocus"
+        bindconfirm="submitLogin"
+        confirm-type="done"
+        value="{{username}}"
+      />
     </view>
 
-    <view class="field">
-      <text class="field-label">密码</text>
-      <input class="field-input" password placeholder="请输入密码" data-field="password" bindinput="onInput" value="{{password}}" />
+    <view class="login-buttons">
+      <button class="btn-login" loading="{{isSubmitting}}" disabled="{{isSubmitting}}" bindtap="submitLogin">登录</button>
+
+      <button class="btn-about" disabled="{{isSubmitting}}" bindtap="showAbout">
+        <image class="info-icon" src="../../../assets/auth/info-o.svg" mode="aspectFit" />
+        <text>关于家物小记</text>
+      </button>
     </view>
+  </view>
 
-    <button class="primary-btn" style="margin-top: 32rpx;" bindtap="submitLogin">登录</button>
+  <!-- 关于家物小记 - 底部弹出面板 -->
+  <view class="about-mask {{aboutVisible ? 'about-mask--show' : ''}}" wx:if="{{aboutShow}}" bindtap="hideAbout">
+    <view class="about-panel {{aboutVisible ? 'about-panel--show' : ''}}" catchtap="">
+      <!-- 导航栏 -->
+      <view class="about-navbar">
+        <view class="about-navbar__left" bindtap="hideAbout">
+          <image class="about-close-icon" src="../../../assets/auth/cross.svg" mode="aspectFit" />
+        </view>
+        <view class="about-navbar__title">关于家物小记</view>
+        <view class="about-navbar__right"></view>
+      </view>
 
-    <view class="link-row">
-      <text bindtap="goRegister">创建账号</text>
-      <text bindtap="goReset">忘记密码</text>
+      <!-- 内容区（可滚动） -->
+      <scroll-view class="about-scroll" scroll-y enhanced show-scrollbar="{{false}}">
+        <!-- 视频 Banner -->
+        <view class="about-video-wrap">
+          <video
+            wx:if="{{videoReady}}"
+            id="aboutVideo"
+            class="about-video"
+            src="../../../assets/auth/banner-video.mp4"
+            autoplay
+            loop
+            muted
+            show-center-play-btn="{{true}}"
+            show-play-btn="{{false}}"
+            show-fullscreen-btn="{{false}}"
+            show-progress="{{false}}"
+            object-fit="cover"
+            enable-progress-gesture="{{false}}"
+          />
+        </view>
+
+        <!-- 介绍文字 -->
+        <view class="about-text">
+          <text>亲爱的朋友，你是否也有过这样的瞬间？\n\n家里的家电说明书、各种大大小小联系人的名片、水费/电费/燃气户号小票据等堆得抽屉满满当当，想找的时候翻来翻去，半天找不到；\n\n刚买的新电器，说明书随手放，用到时却遍寻无果，只能对着按钮束手无策；\n\n搬家整理时，一摞摞纸质文档又占地方又难打理，扔了怕有用，留着又杂乱不堪……\n\n我们懂这种无奈——不是不想整理，是琐碎的纸质文档太磨人；\n\n不是不珍惜，是没有一个简单省心的方式，把这些"有用的小事"记好、存好、查好。\n\n于是，【家物小记】来了。它不是复杂的工具，只是一个帮你"解放抽屉、省心省力"的家庭文档小管家～\n\n不用下载APP，微信直接打开，拍照自动生成文档，想用随时搜索。彻底解决纸质文档杂乱、丢失、难查找的烦恼。</text>
+        </view>
+      </scroll-view>
     </view>
   </view>
 </view>

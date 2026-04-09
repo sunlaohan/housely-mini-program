@@ -13,9 +13,9 @@ function buildTaskError(message, code, extra = {}) {
   return error;
 }
 
-function makeCloudPath(userId, fileName) {
+function makeCloudPath(ownerKey, fileName) {
   const safeName = (fileName || 'scan-file').replace(/[^\w.\-\u4e00-\u9fa5]/g, '-');
-  return `ocr/${userId}/${Date.now()}-${safeName}`;
+  return `ocr/${ownerKey}/${Date.now()}-${safeName}`;
 }
 
 function buildDescription(sourceType, summary) {
@@ -24,6 +24,24 @@ function buildDescription(sourceType, summary) {
   }
 
   return sourceType === 'image' ? '来自图片扫描生成' : '来自文件导入生成';
+}
+
+function buildImageSourceName(tempFilePath) {
+  const matchedExt = (tempFilePath || '').match(/\.(jpg|jpeg|png|webp|bmp|heic)$/i);
+  const extension = matchedExt ? matchedExt[0].toLowerCase() : '.jpg';
+  const now = new Date();
+  const pad = (value) => String(value).padStart(2, '0');
+  const stamp = [
+    now.getFullYear(),
+    pad(now.getMonth() + 1),
+    pad(now.getDate())
+  ].join('') + '-' + [
+    pad(now.getHours()),
+    pad(now.getMinutes()),
+    pad(now.getSeconds())
+  ].join('');
+
+  return `图片扫描-${stamp}${extension}`;
 }
 
 function toDraftFromTask(task, source, fileId) {
@@ -58,16 +76,16 @@ async function callOcr(action, payload = {}) {
 function chooseSource() {
   return new Promise((resolve, reject) => {
     wx.showActionSheet({
-      itemList: ['扫描图片', '导入文件'],
+      itemList: ['拍照', '上传图片'],
       success: (sheetRes) => {
         if (sheetRes.tapIndex === 0) {
           wx.chooseMedia({
             count: 1,
             mediaType: ['image'],
-            sourceType: ['camera', 'album'],
+            sourceType: ['camera'],
             success: (res) => resolve({
               type: 'image',
-              fileName: res.tempFiles[0].tempFilePath.split('/').pop(),
+              fileName: buildImageSourceName(res.tempFiles[0].tempFilePath),
               tempFilePath: res.tempFiles[0].tempFilePath,
               size: res.tempFiles[0].size || 0
             }),
@@ -76,13 +94,14 @@ function chooseSource() {
           return;
         }
 
-        wx.chooseMessageFile({
+        wx.chooseMedia({
           count: 1,
-          type: 'file',
+          mediaType: ['image'],
+          sourceType: ['album'],
           success: (res) => resolve({
-            type: 'file',
-            fileName: res.tempFiles[0].name,
-            tempFilePath: res.tempFiles[0].path,
+            type: 'image',
+            fileName: buildImageSourceName(res.tempFiles[0].tempFilePath),
+            tempFilePath: res.tempFiles[0].tempFilePath,
             size: res.tempFiles[0].size || 0
           }),
           fail: reject
@@ -93,8 +112,15 @@ function chooseSource() {
   });
 }
 
-async function uploadSourceToCloud(source, userId) {
-  const cloudPath = makeCloudPath(userId, source.fileName);
+function getTaskOwner(user) {
+  return {
+    ownerKey: String((user && user.username) || '').trim(),
+    legacyUserId: String((user && user.id) || '').trim()
+  };
+}
+
+async function uploadSourceToCloud(source, ownerKey) {
+  const cloudPath = makeCloudPath(ownerKey, source.fileName);
   const result = await wx.cloud.uploadFile({
     cloudPath,
     filePath: source.tempFilePath
@@ -106,10 +132,12 @@ async function uploadSourceToCloud(source, userId) {
   };
 }
 
-async function getTask(taskId, userId) {
+async function getTask(taskId, currentUser) {
+  const { ownerKey, legacyUserId } = getTaskOwner(currentUser);
   const result = await callOcr('getTask', {
     taskId,
-    userId
+    ownerKey,
+    userId: legacyUserId
   });
 
   if (!result.ok || !result.task) {
@@ -119,8 +147,9 @@ async function getTask(taskId, userId) {
   return result.task;
 }
 
-async function triggerTaskProcessing(taskId, userId, options = {}) {
+async function triggerTaskProcessing(taskId, currentUser, options = {}) {
   const { onProgress } = options;
+  const { ownerKey, legacyUserId } = getTaskOwner(currentUser);
 
   if (typeof onProgress === 'function') {
     onProgress({
@@ -131,7 +160,8 @@ async function triggerTaskProcessing(taskId, userId, options = {}) {
 
   const result = await callOcr('processTask', {
     taskId,
-    userId
+    ownerKey,
+    userId: legacyUserId
   });
 
   if (!result.ok && !result.task) {
@@ -141,13 +171,13 @@ async function triggerTaskProcessing(taskId, userId, options = {}) {
   return result.task || null;
 }
 
-async function pollTaskResult(taskId, userId, options = {}) {
+async function pollTaskResult(taskId, currentUser, options = {}) {
   const maxAttempts = options.maxAttempts || ocrConfig.maxPollAttempts;
   const interval = options.interval || ocrConfig.pollInterval;
   const onProgress = options.onProgress;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    const task = await getTask(taskId, userId);
+    const task = await getTask(taskId, currentUser);
 
     if (typeof onProgress === 'function') {
       onProgress({
@@ -176,7 +206,8 @@ async function pollTaskResult(taskId, userId, options = {}) {
 }
 
 async function createDraftFromScan(currentUser, options = {}) {
-  if (!currentUser || !currentUser.id) {
+  const { ownerKey, legacyUserId } = getTaskOwner(currentUser);
+  if (!ownerKey) {
     throw buildTaskError('未获取到当前登录用户', 'AUTH_REQUIRED');
   }
 
@@ -191,9 +222,10 @@ async function createDraftFromScan(currentUser, options = {}) {
     });
   }
 
-  const uploaded = await uploadSourceToCloud(source, currentUser.id);
+  const uploaded = await uploadSourceToCloud(source, ownerKey);
   const created = await callOcr('createTask', {
-    userId: currentUser.id,
+    ownerKey,
+    userId: legacyUserId,
     sourceName: source.fileName,
     sourceType: source.type,
     sourceFileId: uploaded.fileID,
@@ -213,20 +245,20 @@ async function createDraftFromScan(currentUser, options = {}) {
     });
   }
 
-  const processingTask = await triggerTaskProcessing(created.task.id, currentUser.id, { onProgress });
+  const processingTask = await triggerTaskProcessing(created.task.id, currentUser, { onProgress });
   const task = processingTask && processingTask.status === 'success'
     ? processingTask
-    : await pollTaskResult(created.task.id, currentUser.id, { onProgress });
+    : await pollTaskResult(created.task.id, currentUser, { onProgress });
   return toDraftFromTask(task, source, uploaded.fileID);
 }
 
 async function refreshDraftFromTask(currentUser, taskId, options = {}) {
-  if (!currentUser || !currentUser.id || !taskId) {
+  if (!currentUser || !currentUser.username || !taskId) {
     throw buildTaskError('缺少 OCR 任务信息', 'OCR_TASK_INVALID');
   }
 
   const { onProgress, source = {} } = options;
-  const task = await pollTaskResult(taskId, currentUser.id, { onProgress });
+  const task = await pollTaskResult(taskId, currentUser, { onProgress });
   return toDraftFromTask(task, source, task.sourceFileId);
 }
 
