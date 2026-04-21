@@ -1,0 +1,10 @@
+<view class="list-cell" bindtap="onTap">
+  <view class="list-cell__inner {{showDivider ? 'list-cell__inner--divider' : ''}} {{centered ? 'list-cell__inner--centered' : ''}}">
+    <view class="list-cell__content">
+      <view class="list-cell__title {{danger ? 'list-cell__title--danger' : ''}}">{{title}}</view>
+      <view wx:if="{{note}}" class="list-cell__note">{{note}}</view>
+    </view>
+    <view wx:if="{{value}}" class="list-cell__value">{{value}}</view>
+    <view wx:if="{{arrow}}" class="list-cell__arrow"></view>
+  </view>
+</view>

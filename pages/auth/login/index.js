@@ -1,4 +1,5 @@
 const { loginWithUsername } = require('../../../utils/account');
+const { getAboutBannerMedia } = require('../../../utils/about');
 
 Page({
   data: {
@@ -6,8 +7,11 @@ Page({
     isSubmitting: false,
     aboutShow: false,
     aboutVisible: false,
-    videoReady: false,
-    nicknameTipShown: false
+    nicknameTipShown: false,
+    aboutVideoUrl: '',
+    aboutPosterUrl: '',
+    aboutVideoReady: false,
+    aboutVideoPlaying: false
   },
 
   onShow() {
@@ -63,30 +67,73 @@ Page({
       });
     } catch (error) {
       console.error('submitLogin failed', error);
-      const message = (error && (error.errMsg || error.message)) || '登录失败，请检查云函数';
+      const message = error && error.code === 'AUTH_CLOUD_CALL_FAILED'
+        ? '云端登录不可用，请检查 auth 云函数和云环境'
+        : ((error && (error.errMsg || error.message)) || '登录失败，请检查云函数');
       wx.showToast({ title: message.slice(0, 30), icon: 'none' });
     } finally {
       this.setData({ isSubmitting: false });
     }
   },
 
-  showAbout() {
+  async showAbout() {
     this.setData({ aboutShow: true });
     setTimeout(() => {
       this.setData({ aboutVisible: true });
     }, 30);
-    setTimeout(() => {
-      this.setData({ videoReady: true });
-    }, 380);
+
+    try {
+      const media = await getAboutBannerMedia();
+      this.setData({
+        aboutVideoUrl: media.videoUrl,
+        aboutPosterUrl: media.posterUrl,
+        aboutVideoReady: Boolean(media.videoUrl),
+        aboutVideoPlaying: false
+      });
+    } catch (error) {
+      console.error('getAboutBannerMedia failed', error);
+      this.setData({
+        aboutVideoReady: false,
+        aboutVideoPlaying: false
+      });
+    }
   },
 
   hideAbout() {
-    this.setData({ videoReady: false });
     setTimeout(() => {
       this.setData({ aboutVisible: false });
       setTimeout(() => {
         this.setData({ aboutShow: false });
       }, 350);
     }, 50);
-  }
+  },
+
+  playAboutVideo() {
+    if (!this.data.aboutVideoReady) {
+      return;
+    }
+
+    this.setData({ aboutVideoPlaying: true });
+    setTimeout(() => {
+      const context = wx.createVideoContext('login-about-video', this);
+      if (context && typeof context.play === 'function') {
+        context.play();
+      }
+    }, 30);
+  },
+
+  onAboutVideoPlay() {
+    this.setData({ aboutVideoPlaying: true });
+  },
+
+  onAboutVideoPause() {
+    this.setData({ aboutVideoPlaying: false });
+  },
+
+  onAboutVideoEnded() {
+    this.setData({ aboutVideoPlaying: false });
+  },
+
+  noop() {}
+
 });

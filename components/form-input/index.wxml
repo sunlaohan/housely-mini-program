@@ -1,0 +1,17 @@
+<view class="form-input">
+  <view class="form-input__inner {{showDivider ? 'form-input__inner--divider' : ''}}">
+    <view class="form-input__label-row">
+      <text wx:if="{{required}}" class="form-input__required">*</text>
+      <text class="form-input__label">{{label}}</text>
+    </view>
+    <input
+      class="form-input__control"
+      value="{{value}}"
+      placeholder="{{placeholder}}"
+      placeholder-class="form-input__placeholder"
+      maxlength="{{maxlength}}"
+      disabled="{{disabled}}"
+      bindinput="onInput"
+    />
+  </view>
+</view>

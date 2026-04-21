@@ -1,0 +1,19 @@
+<view class="form-textarea">
+  <view class="form-textarea__inner {{showDivider ? 'form-textarea__inner--divider' : ''}}">
+    <view class="form-textarea__label-row">
+      <text wx:if="{{required}}" class="form-textarea__required">*</text>
+      <text class="form-textarea__label">{{label}}</text>
+    </view>
+    <textarea
+      class="form-textarea__control"
+      value="{{value}}"
+      placeholder="{{placeholder}}"
+      placeholder-class="form-textarea__placeholder"
+      maxlength="{{maxlength}}"
+      disabled="{{disabled}}"
+      cursor-spacing="24"
+      bindinput="onInput"
+    />
+    <view class="form-textarea__count">{{currentLength}}/{{maxlength}}</view>
+  </view>
+</view>

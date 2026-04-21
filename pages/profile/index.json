@@ -1,0 +1,11 @@
+{
+  "navigationStyle": "custom",
+  "usingComponents": {
+    "app-button": "/components/app-button/index",
+    "bottom-sheet": "/components/bottom-sheet/index",
+    "form-input": "/components/form-input/index",
+    "form-textarea": "/components/form-textarea/index",
+    "media-uploader": "/components/media-uploader/index",
+    "list-cell": "/components/list-cell/index"
+  }
+}

@@ -1,0 +1,87 @@
+<view class="document-page">
+  <view class="document-navbar" style="padding-top: {{statusBarHeight}}px;">
+    <view class="document-navbar__bar" style="height: {{navBarHeight}}px; padding-right: {{capsuleSafeWidth}}px;">
+      <view class="document-navbar__back" bindtap="goBack">
+        <image class="document-navbar__back-icon" src="../../assets/auth/arrow-left.svg" mode="aspectFit" />
+      </view>
+      <view class="document-navbar__title">文档详情</view>
+      <view class="document-navbar__capsule">
+        <view class="document-navbar__capsule-inner">
+          <view class="document-navbar__capsule-dot"></view>
+          <view class="document-navbar__capsule-dot"></view>
+          <view class="document-navbar__capsule-dot"></view>
+          <view class="document-navbar__capsule-divider"></view>
+          <view class="document-navbar__capsule-ring"></view>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{!searchMode}}" class="document-toolbar">
+    <view class="document-toolbar__left">
+      <view class="document-pill" bindtap="openSearch">
+        <image class="document-pill__icon" src="../../assets/auth/search.svg" mode="aspectFit" />
+        <text class="document-pill__text">查找</text>
+      </view>
+      <view class="document-pill" bindtap="goEdit">
+        <image class="document-pill__icon" src="../../assets/auth/edit.svg" mode="aspectFit" />
+        <text class="document-pill__text">编辑</text>
+      </view>
+    </view>
+
+    <view class="document-zoom">
+      <view class="document-zoom__button" bindtap="zoomOutText">
+        <image class="document-zoom__icon document-zoom__icon--minus" src="../../assets/auth/zoom-out.svg" mode="aspectFit" />
+      </view>
+      <view class="document-zoom__divider"></view>
+      <view class="document-zoom__button" bindtap="zoomInText">
+        <image class="document-zoom__icon document-zoom__icon--plus" src="../../assets/auth/zoom-in.svg" mode="aspectFit" />
+      </view>
+    </view>
+  </view>
+
+  <view wx:else class="document-searchbar">
+    <view class="document-searchbar__box">
+      <image class="document-searchbar__icon" src="../../assets/auth/search.svg" mode="aspectFit" />
+      <input
+        class="document-searchbar__input"
+        type="text"
+        maxlength="50"
+        placeholder="请输入关键词"
+        placeholder-class="document-searchbar__placeholder"
+        focus="{{searchFocus}}"
+        value="{{searchKeyword}}"
+        bindinput="onSearchInput"
+      />
+      <view wx:if="{{searchKeyword}}" class="document-searchbar__clear" catchtap="clearSearch">
+        <image class="document-searchbar__clear-icon" src="../../assets/auth/cross.svg" mode="aspectFit" />
+      </view>
+    </view>
+    <view class="document-searchbar__cancel" bindtap="cancelSearch">取消</view>
+  </view>
+
+  <scroll-view class="document-scroll" scroll-y="{{true}}" scroll-with-animation="{{true}}" scroll-into-view="{{scrollIntoView}}">
+    <view id="detail-top-anchor" class="document-scroll__anchor"></view>
+    <view class="document-scroll__body">
+      <view class="document-card">
+        <view id="detail-title-anchor" class="document-card__title">
+          <block wx:for="{{titleSegments}}" wx:key="id" wx:for-item="segment">
+            <text class="document-card__title-segment {{segment.matched ? 'document-card__segment--matched' : ''}}" style="{{titleTextStyle}}">{{segment.text}}</text>
+          </block>
+        </view>
+
+        <view class="document-card__content">
+          <block wx:for="{{contentLines}}" wx:key="id" wx:for-item="line">
+            <view id="{{line.id}}" class="document-card__line {{line.isEmpty ? 'document-card__line--empty' : ''}}" style="{{line.isEmpty ? emptyLineStyle : ''}}">
+              <block wx:if="{{!line.isEmpty}}">
+                <block wx:for="{{line.segments}}" wx:key="id" wx:for-item="segment">
+                  <text class="document-card__content-segment {{segment.matched ? 'document-card__segment--matched' : ''}}" style="{{contentTextStyle}}">{{segment.text}}</text>
+                </block>
+              </block>
+            </view>
+          </block>
+        </view>
+      </view>
+    </view>
+  </scroll-view>
+</view>

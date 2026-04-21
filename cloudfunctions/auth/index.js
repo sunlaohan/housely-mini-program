@@ -8,6 +8,8 @@ const db = cloud.database();
 const users = db.collection('users');
 const documents = db.collection('documents');
 const ocrTasks = db.collection('ocr_tasks');
+const feedbacks = db.collection('feedbacks');
+const DEFAULT_AVATAR = '/assets/auth/boy-1.png';
 
 function sanitizeUser(user) {
   if (!user) {
@@ -17,7 +19,7 @@ function sanitizeUser(user) {
   return {
     id: user._id || user.id || '',
     username: user.username || '',
-    avatar: user.avatar || '',
+    avatar: user.avatar || DEFAULT_AVATAR,
     createdAt: user.createdAt || ''
   };
 }
@@ -79,7 +81,7 @@ async function handleLoginOrCreate(event) {
     const result = await users.add({
       data: {
         username,
-        avatar: '',
+        avatar: DEFAULT_AVATAR,
         createdAt
       }
     });
@@ -87,7 +89,7 @@ async function handleLoginOrCreate(event) {
     user = {
       _id: result._id,
       username,
-      avatar: '',
+      avatar: DEFAULT_AVATAR,
       createdAt
     };
   }
@@ -134,13 +136,15 @@ async function handleDeleteAccount(event) {
   }
 
   const ownerKey = user.username || username;
-  const [ownedDocuments, ownedTasks] = await Promise.all([
+  const [ownedDocuments, ownedTasks, ownedFeedbacks] = await Promise.all([
     queryOwnedRecords(documents, ownerKey, user._id),
-    queryOwnedRecords(ocrTasks, ownerKey, user._id)
+    queryOwnedRecords(ocrTasks, ownerKey, user._id),
+    queryOwnedRecords(feedbacks, ownerKey, user._id)
   ]);
 
   await Promise.all(ownedDocuments.map((doc) => documents.doc(doc._id).remove()));
   await Promise.all(ownedTasks.map((task) => ocrTasks.doc(task._id).remove()));
+  await Promise.all(ownedFeedbacks.map((item) => feedbacks.doc(item._id).remove()));
   await users.doc(user._id).remove();
 
   return { ok: true };
@@ -154,22 +158,35 @@ function unsupportedAuthMode() {
 }
 
 exports.main = async (event) => {
-  switch (event.action) {
-    case 'loginOrCreate':
-    case 'login':
-    case 'register':
-      return handleLoginOrCreate(event);
-    case 'updateAvatar':
-      return handleUpdateAvatar(event);
-    case 'deleteAccount':
-      return handleDeleteAccount(event);
-    case 'loginByPhoneCode':
-    case 'getSecurityQuestion':
-    case 'resetPassword':
-    case 'updatePassword':
-    case 'updateSecurity':
-      return unsupportedAuthMode();
-    default:
-      return { ok: false, message: '不支持的操作' };
+  try {
+    switch (event.action) {
+      case 'loginOrCreate':
+      case 'login':
+      case 'register':
+        return handleLoginOrCreate(event);
+      case 'updateAvatar':
+        return handleUpdateAvatar(event);
+      case 'deleteAccount':
+        return handleDeleteAccount(event);
+      case 'loginByPhoneCode':
+      case 'getSecurityQuestion':
+      case 'resetPassword':
+      case 'updatePassword':
+      case 'updateSecurity':
+        return unsupportedAuthMode();
+      default:
+        return { ok: false, message: '不支持的操作' };
+    }
+  } catch (error) {
+    console.error('auth main failed', event && event.action, error);
+    return {
+      ok: false,
+      message: error && error.message ? error.message : 'auth 云函数执行失败',
+      debug: {
+        action: event && event.action,
+        errorName: error && error.name ? error.name : '',
+        errorMessage: error && error.message ? error.message : ''
+      }
+    };
   }
 };

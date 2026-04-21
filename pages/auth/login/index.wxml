@@ -1,7 +1,7 @@
 <view class="login-page">
   <!-- 品牌区 -->
   <view class="login-brand">
-    <image class="brand-illustration" src="../../../assets/auth/img-login.svg" mode="widthFix" />
+    <image class="brand-illustration" src="../../../assets/auth/img-login.png" mode="widthFix" />
   </view>
 
   <!-- 表单区 -->
@@ -23,18 +23,18 @@
     </view>
 
     <view class="login-buttons">
-      <button class="btn-login" loading="{{isSubmitting}}" disabled="{{isSubmitting}}" bindtap="submitLogin">登录</button>
+      <app-button text="登录" variant="dark" width-mode="full" loading="{{isSubmitting}}" disabled="{{isSubmitting}}" bind:press="submitLogin" />
 
-      <button class="btn-about" disabled="{{isSubmitting}}" bindtap="showAbout">
-        <image class="info-icon" src="../../../assets/auth/info-o.svg" mode="aspectFit" />
-        <text>关于家物小记</text>
-      </button>
+      <app-button variant="light" width-mode="full" disabled="{{isSubmitting}}" bind:press="showAbout">
+        <image slot="prefix" class="info-icon" src="../../../assets/auth/info-o.svg" mode="aspectFit" />
+        <text class="login-about-text">关于家物小记</text>
+      </app-button>
     </view>
   </view>
 
   <!-- 关于家物小记 - 底部弹出面板 -->
   <view class="about-mask {{aboutVisible ? 'about-mask--show' : ''}}" wx:if="{{aboutShow}}" bindtap="hideAbout">
-    <view class="about-panel {{aboutVisible ? 'about-panel--show' : ''}}" catchtap="">
+    <view class="about-panel {{aboutVisible ? 'about-panel--show' : ''}}" catchtap="noop">
       <!-- 导航栏 -->
       <view class="about-navbar">
         <view class="about-navbar__left" bindtap="hideAbout">
@@ -46,23 +46,27 @@
 
       <!-- 内容区（可滚动） -->
       <scroll-view class="about-scroll" scroll-y enhanced show-scrollbar="{{false}}">
-        <!-- 视频 Banner -->
         <view class="about-video-wrap">
           <video
-            wx:if="{{videoReady}}"
-            id="aboutVideo"
+            wx:if="{{aboutVideoReady}}"
+            id="login-about-video"
             class="about-video"
-            src="../../../assets/auth/banner-video.mp4"
-            autoplay
-            loop
-            muted
+            src="{{aboutVideoUrl}}"
+            poster="{{aboutPosterUrl}}"
+            controls="{{true}}"
             show-center-play-btn="{{true}}"
-            show-play-btn="{{false}}"
-            show-fullscreen-btn="{{false}}"
-            show-progress="{{false}}"
+            enable-play-gesture="{{true}}"
             object-fit="cover"
-            enable-progress-gesture="{{false}}"
+            bindplay="onAboutVideoPlay"
+            bindpause="onAboutVideoPause"
+            bindended="onAboutVideoEnded"
           />
+          <view wx:if="{{aboutVideoReady && !aboutVideoPlaying}}" class="about-video-overlay" catchtap="playAboutVideo">
+            <view class="about-video-overlay__button">
+              <view class="about-video-overlay__triangle"></view>
+            </view>
+          </view>
+          <image wx:else class="about-video" src="{{aboutPosterUrl || '../../../assets/auth/img-login.png'}}" mode="aspectFill" />
         </view>
 
         <!-- 介绍文字 -->

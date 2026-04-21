@@ -1,0 +1,16 @@
+<view class="custom-tab-bar {{hidden ? 'custom-tab-bar--hidden' : ''}}">
+  <view class="custom-tab-bar__inner">
+    <block wx:for="{{list}}" wx:key="pagePath">
+      <view class="custom-tab-bar__item" data-index="{{index}}" data-path="{{item.pagePath}}" bindtap="onSwitchTab">
+        <image
+          class="custom-tab-bar__icon"
+          src="{{selected === index ? item.selectedIconPath : item.iconPath}}"
+          mode="aspectFit"
+        />
+        <text class="custom-tab-bar__label {{selected === index ? 'custom-tab-bar__label--active' : ''}}">
+          {{item.text}}
+        </text>
+      </view>
+    </block>
+  </view>
+</view>

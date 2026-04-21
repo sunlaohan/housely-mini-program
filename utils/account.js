@@ -1,4 +1,5 @@
 const { KEYS, read, write, remove } = require('./storage');
+const DEFAULT_AVATAR = '/assets/auth/boy-1.png';
 
 function sanitizeUser(user) {
   if (!user) {
@@ -8,7 +9,7 @@ function sanitizeUser(user) {
   return {
     id: user.id || user._id || '',
     username: user.username || '',
-    avatar: user.avatar || '',
+    avatar: user.avatar || DEFAULT_AVATAR,
     createdAt: user.createdAt || ''
   };
 }
@@ -26,7 +27,11 @@ async function callAuth(action, payload = {}) {
     return result.result || {};
   } catch (error) {
     console.error('callAuth failed', action, payload, error);
-    throw error;
+    const errMsg = (error && (error.errMsg || error.message)) || '';
+    const nextError = new Error(errMsg || '云端登录失败');
+    nextError.code = 'AUTH_CLOUD_CALL_FAILED';
+    nextError.errMsg = errMsg;
+    throw nextError;
   }
 }
 

@@ -1,7 +1,9 @@
 {
   "pages": [
+    "pages/launch/index",
     "pages/auth/login/index",
     "pages/home/index",
+    "pages/document/index",
     "pages/editor/index",
     "pages/profile/index"
   ],
@@ -13,6 +15,7 @@
     "backgroundTextStyle": "light"
   },
   "tabBar": {
+    "custom": true,
     "color": "#7B8591",
     "selectedColor": "#1B2129",
     "backgroundColor": "#FFFFFF",
@@ -20,13 +23,13 @@
     "list": [
       {
         "pagePath": "pages/home/index",
-        "text": "首页",
+        "text": "家",
         "iconPath": "assets/tabbar/home.png",
         "selectedIconPath": "assets/tabbar/home-active.png"
       },
       {
         "pagePath": "pages/profile/index",
-        "text": "个人中心",
+        "text": "我的",
         "iconPath": "assets/tabbar/profile.png",
         "selectedIconPath": "assets/tabbar/profile-active.png"
       }

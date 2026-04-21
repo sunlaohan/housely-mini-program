@@ -1,0 +1,33 @@
+<view class="media-uploader">
+  <view class="media-uploader__inner {{showDivider ? 'media-uploader__inner--divider' : ''}}">
+    <view class="media-uploader__label">{{label}}</view>
+    <view class="media-uploader__grid">
+      <view wx:if="{{disabled !== true && items.length < maxCount}}" class="media-uploader__trigger" bindtap="onAdd">
+        <image class="media-uploader__trigger-icon" src="{{addIcon}}" mode="aspectFit" />
+      </view>
+
+      <block wx:for="{{items}}" wx:key="key">
+        <view class="media-uploader__item">
+          <image
+            wx:if="{{item.type !== 'video'}}"
+            class="media-uploader__preview"
+            src="{{item.previewUrl}}"
+            mode="aspectFill"
+            data-key="{{item.key}}"
+            bindtap="onPreview"
+          />
+          <view
+            wx:else
+            class="media-uploader__preview media-uploader__preview--video"
+            data-key="{{item.key}}"
+            bindtap="onPreview"
+          >
+            <image class="media-uploader__preview-image" src="{{item.previewUrl}}" mode="aspectFill" />
+            <view class="media-uploader__video-badge">视频</view>
+          </view>
+          <view wx:if="{{disabled !== true}}" class="media-uploader__remove" data-key="{{item.key}}" catchtap="onRemove">×</view>
+        </view>
+      </block>
+    </view>
+  </view>
+</view>

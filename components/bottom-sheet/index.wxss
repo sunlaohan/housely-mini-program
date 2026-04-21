@@ -1,0 +1,36 @@
+.bottom-sheet {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 10000;
+}
+
+.bottom-sheet__mask {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background: rgba(0, 0, 0, 0.7);
+  opacity: 0;
+  transition: opacity 0.24s ease;
+}
+
+.bottom-sheet__panel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  transform: translateY(100%);
+  transition: transform 0.24s ease;
+}
+
+.bottom-sheet--show .bottom-sheet__mask {
+  opacity: 1;
+}
+
+.bottom-sheet--show .bottom-sheet__panel {
+  transform: translateY(0);
+}

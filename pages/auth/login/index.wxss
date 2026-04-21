@@ -80,52 +80,17 @@
 }
 
 /* ===== 重置微信小程序 button 默认样式 ===== */
-.login-buttons button {
-  /* 清除默认 margin（微信按钮默认有左右 margin） */
-  margin: 0;
-  padding: 0 30rpx;
-  /* 强制全宽填充 */
-  width: 100% !important;
-  /* 固定高度 44px = 88rpx */
-  height: 88rpx;
-  /* 圆角 8px = 16rpx */
-  border-radius: 16rpx;
-  border: none;
-  /* 文本样式 14/Regular */
-  font-size: 28rpx;
-  font-weight: 400;
-  line-height: 88rpx;
-  text-align: center;
-  /* 内部 flex 布局居中 */
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
-}
-
-/* 清除微信 button::after 的默认边框 */
-.login-buttons button::after {
-  display: none;
-}
-
-/* 登录按钮：深色背景 Grey/Grey 900，白色文字 */
-.btn-login {
-  background: #1b2129 !important;
-  color: #ffffff !important;
-}
-
-/* 关于按钮：白色背景，深色文字 */
-.btn-about {
-  background: #ffffff !important;
-  color: #1b2129 !important;
-  gap: 12rpx;
-}
-
 /* 关于图标 18×18 → 36rpx */
 .info-icon {
   width: 36rpx;
   height: 36rpx;
   flex-shrink: 0;
+}
+
+.login-about-text {
+  font-size: 28rpx;
+  line-height: 44rpx;
+  color: #1b2129;
 }
 
 /* ================================================================
@@ -139,7 +104,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 1000;
+  z-index: 10000;
   background: rgba(0, 0, 0, 0);
   transition: background 0.3s ease;
 }
@@ -216,6 +181,7 @@
 
 /* 视频 Banner */
 .about-video-wrap {
+  position: relative;
   width: 100%;
   height: 436rpx;
   border-radius: 16rpx;
@@ -225,6 +191,33 @@
 .about-video {
   width: 100%;
   height: 100%;
+}
+
+.about-video-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.about-video-overlay__button {
+  width: 96rpx;
+  height: 96rpx;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.42);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.about-video-overlay__triangle {
+  width: 0;
+  height: 0;
+  margin-left: 6rpx;
+  border-top: 16rpx solid transparent;
+  border-bottom: 16rpx solid transparent;
+  border-left: 26rpx solid #ffffff;
 }
 
 /* 介绍文字 */

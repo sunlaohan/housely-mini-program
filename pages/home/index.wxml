@@ -1,52 +1,91 @@
-<view class="page-shell" bindtap="closeSwipe">
-  <view class="hero-card">
-    <view class="page-title">我的文档</view>
-    <view class="page-subtitle">登录账号后即可管理扫描生成的 Markdown 文档，支持右上角新增和批量操作。</view>
-  </view>
-
-  <view class="panel" style="margin-top: 28rpx;">
-    <view class="toolbar">
-      <view>
-        <view class="section-title">文件列表</view>
-        <view class="muted" style="margin-top: 10rpx;">共 {{docs.length}} 个文件</view>
-      </view>
-      <view class="toolbar-actions">
-        <text class="toolbar-link" bindtap="toggleBatch">{{batchMode ? '完成' : '批量操作'}}</text>
-        <text class="toolbar-link add-link" bindtap="goAdd">添加</text>
+<view class="page-shell home-shell {{batchMode ? 'home-shell--batch' : ''}}" bindtap="closeSwipe">
+  <view class="home-search-row">
+    <view class="home-search-box">
+      <image class="home-search-icon" src="../../assets/auth/search.svg" mode="aspectFit"></image>
+      <input
+        class="home-search-input"
+        type="text"
+        confirm-type="search"
+        maxlength="50"
+        placeholder="请输入搜索关键词"
+        placeholder-class="home-search-input__placeholder"
+        value="{{searchKeyword}}"
+        bindinput="onSearchInput"
+      />
+      <view wx:if="{{searchLoading}}" class="home-search-loading" catchtap="noop"></view>
+      <view wx:elif="{{searchKeyword}}" class="home-search-clear" catchtap="clearSearch">
+        <image class="home-search-clear-icon" src="../../assets/auth/cross.svg" mode="aspectFit"></image>
       </view>
     </view>
+    <view wx:if="{{searchKeyword}}" class="home-search-cancel" bindtap="cancelSearch">取消</view>
+    <view wx:else class="home-search-cancel home-search-cancel--placeholder"></view>
+  </view>
 
-    <block wx:if="{{!docs.length}}">
-      <view class="empty-card" style="margin-top: 28rpx;">
-        <view class="empty-title">还没有文档</view>
-        <view class="page-subtitle" style="margin-top: 12rpx;">首次登录时这里会展示空状态。点击下方主按钮，进入扫描或导入流程并生成 Markdown。</view>
-        <button class="primary-btn" style="margin-top: 28rpx;" bindtap="goAdd">添加</button>
+  <view class="home-toolbar">
+    <view class="home-toolbar-title">
+      <image class="home-toolbar-icon" src="../../assets/auth/description.svg" mode="aspectFit"></image>
+      <text class="home-toolbar-text">文件列表 ({{searchKeyword ? docs.length : allDocs.length}})</text>
+    </view>
+
+    <view class="home-toolbar-actions">
+      <block wx:if="{{batchMode}}">
+        <view class="batch-pill batch-pill--plain" bindtap="toggleSelectAll">
+          <text class="batch-pill-text">全选</text>
+        </view>
+        <view class="batch-pill batch-pill--plain" bindtap="exitBatchMode">
+          <text class="batch-pill-text">取消批量</text>
+        </view>
+      </block>
+      <view wx:else class="batch-pill" bindtap="toggleBatch">
+        <image class="batch-pill-icon" src="../../assets/auth/passed.svg" mode="aspectFit"></image>
+        <text class="batch-pill-text">批量操作</text>
       </view>
-    </block>
+      <view class="add-fab" bindtap="goAdd">
+        <image class="add-fab-icon" src="../../assets/auth/plus.svg" mode="aspectFit"></image>
+      </view>
+    </view>
+  </view>
 
-    <block wx:else>
-      <checkbox-group bindchange="onSelectChange">
+  <block wx:if="{{!docs.length}}">
+    <view class="empty-state">
+      <image class="empty-illustration" src="../../assets/auth/empty-img.png" mode="aspectFit"></image>
+      <view class="empty-copy">{{searchKeyword ? '没有匹配到相关内容' : '我的房子空无一物～～'}}</view>
+      <app-button wx:if="{{!searchKeyword}}" text="添加" variant="dark" width-mode="fixed" fixed-width="240rpx" bind:press="goAdd" />
+    </view>
+  </block>
+
+  <block wx:else>
+    <view class="doc-list">
+      <view class="doc-list__group">
         <block wx:for="{{docs}}" wx:key="id">
           <view class="swipe-shell" catchtap="noop" data-id="{{item.id}}" bindtouchstart="onTouchStart" bindtouchmove="onTouchMove" bindtouchend="onTouchEnd">
             <view class="delete-action">
               <button class="delete-btn" data-id="{{item.id}}" bindtap="confirmDelete">删除</button>
             </view>
 
-            <view class="doc-card" style="transform: translateX(-{{item.swipeOffset || 0}}rpx);" data-id="{{item.id}}" bindtap="openDoc">
+            <view class="doc-card {{item.swipeOffset ? 'doc-card--swiped' : ''}}" style="transform: translateX(-{{item.swipeOffset || 0}}rpx);" data-id="{{item.id}}" bindtap="openDoc">
               <view class="doc-main">
-                <checkbox wx:if="{{batchMode}}" class="doc-checkbox" value="{{item.id}}" />
+                <view wx:if="{{batchMode}}" class="doc-select-slot" data-id="{{item.id}}" catchtap="toggleDocSelection">
+                  <view class="doc-select {{item.selected ? 'doc-select--checked' : ''}}">
+                    <view wx:if="{{item.selected}}" class="doc-select__tick"></view>
+                  </view>
+                </view>
                 <view class="doc-content">
-                  <view class="doc-name">{{item.name}}</view>
-                  <view class="doc-desc">{{item.description}}</view>
-                  <view class="doc-meta">更新于 {{item.updatedLabel}}</view>
+                  <view class="doc-title-row">
+                    <rich-text class="doc-name" nodes="{{item.titleRichText}}"></rich-text>
+                    <view class="doc-arrow"></view>
+                  </view>
+                  <view class="doc-desc">{{item.previewText || '暂无正文内容'}}</view>
                 </view>
               </view>
             </view>
           </view>
         </block>
-      </checkbox-group>
+      </view>
+    </view>
+  </block>
 
-      <button wx:if="{{batchMode}}" class="danger-btn" style="margin-top: 28rpx;" bindtap="deleteSelected">删除选中项</button>
-    </block>
+  <view wx:if="{{batchMode && docs.length}}" class="batch-footer">
+    <app-button text="删除选中项" variant="danger" width-mode="full" bind:press="deleteSelected" />
   </view>
 </view>

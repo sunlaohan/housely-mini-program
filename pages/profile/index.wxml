@@ -1,30 +1,173 @@
-<view class="page-shell">
-  <view class="profile-card">
-    <view class="profile-top">
-      <block wx:if="{{currentUser.avatar}}">
-        <image class="avatar" src="{{currentUser.avatar}}" mode="aspectFill"></image>
-      </block>
-      <view wx:else class="avatar avatar-fallback">{{avatarInitial}}</view>
-      <view class="profile-meta">
-        <view class="page-title" style="font-size: 42rpx;">{{currentUser.username}}</view>
-        <view class="page-subtitle" style="margin-top: 10rpx;">创建时间 {{createdLabel || '刚刚'}}</view>
+<view class="profile-page">
+  <view class="profile-navbar" style="padding-top: {{statusBarHeight}}px;">
+    <view class="profile-navbar__bar" style="height: {{navBarHeight}}px; padding-right: {{capsuleSafeWidth}}px;">
+      <view class="profile-navbar__spacer"></view>
+      <view class="profile-navbar__title">家物小记</view>
+      <view class="profile-navbar__capsule">
+        <view class="profile-navbar__capsule-inner">
+          <view class="profile-navbar__capsule-dot"></view>
+          <view class="profile-navbar__capsule-dot"></view>
+          <view class="profile-navbar__capsule-dot"></view>
+          <view class="profile-navbar__capsule-divider"></view>
+          <view class="profile-navbar__capsule-ring"></view>
+        </view>
       </view>
     </view>
-
-    <button class="ghost-btn" style="margin-top: 28rpx;" bindtap="pickAvatar">修改头像</button>
   </view>
 
-  <view class="panel" style="margin-top: 28rpx;">
-    <view class="section-title">账号管理</view>
-    <view class="action-list">
-      <view class="action-item" bindtap="logoutAccount">
-        <text>退出登录</text>
-        <text class="action-arrow">></text>
+  <view class="profile-body">
+    <view class="profile-user" bindtap="pickAvatar">
+      <image class="profile-avatar" src="{{currentUser.avatar || defaultAvatar}}" mode="aspectFill"></image>
+      <view class="profile-name">{{currentUser.username}}</view>
+    </view>
+
+    <view class="profile-section">
+      <view class="profile-card profile-card--list">
+        <list-cell title="关于家物小记" show-divider="{{true}}" bind:press="showAbout" />
+        <list-cell title="意见反馈" show-divider="{{true}}" bind:press="showFeedback" />
+        <list-cell title="注销账号" danger="{{true}}" show-divider="{{false}}" bind:press="removeAccount" />
       </view>
-      <view class="action-item danger" bindtap="removeAccount">
-        <text>注销账号</text>
-        <text class="action-arrow">></text>
+
+      <view class="profile-logout-wrap">
+        <app-button text="退出登录" variant="light" width-mode="full" bind:press="logoutAccount" />
       </view>
+    </view>
+  </view>
+
+  <bottom-sheet visible="{{feedbackVisible}}" bind:close="closeFeedbackPanel">
+    <view class="feedback-sheet">
+      <view class="feedback-sheet__header">
+        <view class="feedback-sheet__close" bindtap="closeFeedbackPanel">
+          <image class="feedback-sheet__close-icon" src="../../assets/auth/cross.svg" mode="aspectFit"></image>
+        </view>
+        <view class="feedback-sheet__title">意见反馈</view>
+        <view class="feedback-sheet__placeholder"></view>
+      </view>
+
+      <view class="feedback-sheet__body">
+        <view class="feedback-sheet__card">
+          <form-input
+            label="您的联系方式（邮箱/手机号/QQ/微信都行）"
+            required="{{true}}"
+            placeholder="请输入"
+            value="{{feedbackForm.contact}}"
+            show-divider="{{true}}"
+            disabled="{{feedbackSubmitting}}"
+            bind:change="onFeedbackContactChange"
+          />
+          <form-textarea
+            label="问题描述"
+            required="{{true}}"
+            placeholder="请输入"
+            value="{{feedbackForm.content}}"
+            maxlength="200"
+            show-divider="{{true}}"
+            disabled="{{feedbackSubmitting}}"
+            bind:change="onFeedbackContentChange"
+          />
+          <media-uploader
+            label="问题图片/视频"
+            items="{{feedbackForm.attachments}}"
+            max-count="{{feedbackMaxCount}}"
+            add-icon="/assets/auth/photograph.svg"
+            disabled="{{feedbackSubmitting}}"
+            bind:add="addFeedbackAttachment"
+            bind:remove="removeFeedbackAttachment"
+            bind:preview="previewFeedbackAttachment"
+          />
+        </view>
+      </view>
+
+      <view class="feedback-sheet__footer">
+        <app-button text="确定" variant="dark" width-mode="full" loading="{{feedbackSubmitting}}" disabled="{{feedbackSubmitting}}" bind:press="submitFeedbackForm" />
+      </view>
+    </view>
+  </bottom-sheet>
+
+  <bottom-sheet visible="{{avatarPanelVisible}}" bind:close="closeAvatarPanel">
+    <view class="avatar-sheet">
+      <view class="avatar-sheet__header">
+        <view class="avatar-sheet__close" bindtap="closeAvatarPanel">
+          <image class="avatar-sheet__close-icon" src="../../assets/auth/cross.svg" mode="aspectFit"></image>
+        </view>
+        <view class="avatar-sheet__title">更换头像</view>
+        <view class="avatar-sheet__placeholder"></view>
+      </view>
+
+      <view class="avatar-sheet__body">
+        <view
+          wx:for="{{avatarBuiltinOptions}}"
+          wx:key="key"
+          class="avatar-sheet__item {{avatarSelectionKey === item.key ? 'avatar-sheet__item--selected' : ''}}"
+          data-key="{{item.key}}"
+          data-src="{{item.src}}"
+          bindtap="chooseBuiltinAvatar"
+        >
+          <image class="avatar-sheet__image" src="{{item.src}}" mode="aspectFill"></image>
+        </view>
+
+        <view
+          class="avatar-sheet__item avatar-sheet__item--custom {{avatarSelectionKey === 'custom' ? 'avatar-sheet__item--selected' : ''}}"
+          bindtap="chooseLocalAvatar"
+        >
+          <block wx:if="{{avatarDraftCustomSrc}}">
+            <image class="avatar-sheet__image" src="{{avatarDraftCustomSrc}}" mode="aspectFill"></image>
+          </block>
+          <view wx:else class="avatar-sheet__local-placeholder">
+            <text>本地</text>
+            <text>照片</text>
+          </view>
+        </view>
+      </view>
+
+      <view class="avatar-sheet__footer">
+        <app-button variant="light" width-mode="full" open-type="chooseAvatar" bind:chooseavatar="onChooseWechatAvatar">
+          <image slot="prefix" class="avatar-sheet__wechat-icon" src="../../assets/auth/wechat.svg" mode="aspectFit" />
+          <text class="avatar-sheet__wechat-text">获取微信头像</text>
+        </app-button>
+        <app-button text="确定" variant="dark" width-mode="full" loading="{{avatarSaving}}" disabled="{{avatarSaving}}" bind:press="confirmAvatarSelection" />
+      </view>
+    </view>
+  </bottom-sheet>
+
+  <view class="about-mask {{aboutVisible ? 'about-mask--show' : ''}}" wx:if="{{aboutShow}}" bindtap="hideAbout">
+    <view class="about-panel {{aboutVisible ? 'about-panel--show' : ''}}" catchtap="noop">
+      <view class="about-navbar">
+        <view class="about-navbar__left" bindtap="hideAbout">
+          <image class="about-close-icon" src="../../assets/auth/cross.svg" mode="aspectFit" />
+        </view>
+        <view class="about-navbar__title">关于家物小记</view>
+        <view class="about-navbar__right"></view>
+      </view>
+
+      <scroll-view class="about-scroll" scroll-y enhanced show-scrollbar="{{false}}">
+        <view class="about-video-wrap">
+          <video
+            wx:if="{{aboutVideoReady}}"
+            id="profile-about-video"
+            class="about-video"
+            src="{{aboutVideoUrl}}"
+            poster="{{aboutPosterUrl}}"
+            controls="{{true}}"
+            show-center-play-btn="{{true}}"
+            enable-play-gesture="{{true}}"
+            object-fit="cover"
+            bindplay="onAboutVideoPlay"
+            bindpause="onAboutVideoPause"
+            bindended="onAboutVideoEnded"
+          />
+          <view wx:if="{{aboutVideoReady && !aboutVideoPlaying}}" class="about-video-overlay" catchtap="playAboutVideo">
+            <view class="about-video-overlay__button">
+              <view class="about-video-overlay__triangle"></view>
+            </view>
+          </view>
+          <image wx:else class="about-video" src="{{aboutPosterUrl || '../../assets/auth/img-login.png'}}" mode="aspectFill" />
+        </view>
+
+        <view class="about-text">
+          <text>亲爱的朋友，你是否也有过这样的瞬间？\n\n家里的家电说明书、各种大大小小联系人的名片、水费/电费/燃气户号小票据等堆得抽屉满满当当，想找的时候翻来翻去，半天找不到；\n\n刚买的新电器，说明书随手放，用到时却遍寻无果，只能对着按钮束手无策；\n\n搬家整理时，一摞摞纸质文档又占地方又难打理，扔了怕有用，留着又杂乱不堪……\n\n我们懂这种无奈，不是不想整理，是琐碎的纸质文档太磨人；\n\n不是不珍惜，是没有一个简单省心的方式，把这些“有用的小事”记好、存好、查好。\n\n于是，【家物小记】来了。它不是复杂的工具，只是一个帮你“解放抽屉、省心省力”的家庭文档小管家。\n\n不用下载 APP，微信直接打开，拍照自动生成文档，想用随时搜索。彻底解决纸质文档杂乱、丢失、难查找的烦恼。</text>
+        </view>
+      </scroll-view>
     </view>
   </view>
 </view>

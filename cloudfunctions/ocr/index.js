@@ -13,10 +13,66 @@ const _ = db.command;
 const tasks = db.collection('ocr_tasks');
 const SUPPORTED_MODES = ['mock', 'official', 'http', 'auto'];
 
+function normalizeSourceFile(source) {
+  return {
+    fileName: String(source && (source.fileName || source.sourceName || source.name) || '').trim(),
+    type: String(source && (source.type || source.sourceType) || 'image').trim() || 'image',
+    fileId: String(source && (source.fileId || source.fileID || source.sourceFileId) || '').trim(),
+    cloudPath: String(source && (source.cloudPath || source.sourceCloudPath) || '').trim(),
+    fileSize: Number(source && (source.fileSize || source.size) || 0) || 0
+  };
+}
+
+function getSourceFiles(record) {
+  const sourceFiles = Array.isArray(record && record.sourceFiles)
+    ? record.sourceFiles.map(normalizeSourceFile).filter((source) => source.fileId)
+    : [];
+
+  if (sourceFiles.length) {
+    return sourceFiles;
+  }
+
+  const legacySource = normalizeSourceFile({
+    fileName: record && record.sourceName,
+    type: record && record.sourceType,
+    fileId: record && record.sourceFileId,
+    cloudPath: record && record.sourceCloudPath,
+    fileSize: record && record.fileSize
+  });
+
+  return legacySource.fileId ? [legacySource] : [];
+}
+
+function buildSourceDisplayName(sourceFiles) {
+  if (!sourceFiles.length) {
+    return '';
+  }
+
+  const firstName = sourceFiles[0].fileName || '未命名扫描件';
+  if (sourceFiles.length === 1) {
+    return firstName;
+  }
+
+  return `${firstName.replace(/\.[^.]+$/, '')} 等${sourceFiles.length}张图片`;
+}
+
+function buildSourceType(sourceFiles) {
+  if (!sourceFiles.length) {
+    return '';
+  }
+
+  return sourceFiles.every((source) => source.type === 'image')
+    ? 'image'
+    : (sourceFiles[0].type || 'file');
+}
+
 function sanitizeTask(task) {
   if (!task) {
     return null;
   }
+
+  const sourceFiles = getSourceFiles(task);
+  const primarySource = sourceFiles[0] || null;
 
   return {
     id: task._id || task.id,
@@ -24,10 +80,11 @@ function sanitizeTask(task) {
     userId: task.userId,
     provider: task.provider || ocrConfig.provider || 'WeChat OCR',
     status: task.status || 'pending',
-    sourceName: task.sourceName || '',
-    sourceType: task.sourceType || '',
-    sourceFileId: task.sourceFileId || '',
-    sourceCloudPath: task.sourceCloudPath || '',
+    sourceFiles,
+    sourceName: task.sourceName || buildSourceDisplayName(sourceFiles),
+    sourceType: task.sourceType || buildSourceType(sourceFiles),
+    sourceFileId: task.sourceFileId || (primarySource && primarySource.fileId) || '',
+    sourceCloudPath: task.sourceCloudPath || (primarySource && primarySource.cloudPath) || '',
     markdown: task.markdown || '',
     rawJson: task.rawJson || null,
     summary: task.summary || '',
@@ -52,19 +109,33 @@ function isTaskOwnedBy(task, event) {
   );
 }
 
-function makeMockContent(sourceName, sourceType) {
-  const title = (sourceName || '未命名扫描件').replace(/\.[^.]+$/, '');
-
-  return [
+function makeMockContent(task) {
+  const sourceFiles = getSourceFiles(task);
+  const title = (task.sourceName || buildSourceDisplayName(sourceFiles) || '未命名扫描件').replace(/\.[^.]+$/, '');
+  const sourceType = task.sourceType || buildSourceType(sourceFiles);
+  const header = [
     `文件标题：${title}`,
     `识别引擎：MinerU 演示模式`,
-    `来源类型：${sourceType === 'image' ? '图片扫描' : '文件导入'}`,
+    `来源类型：${sourceType === 'image' ? '图片扫描' : '文件导入'}`
+  ];
+
+  const sections = sourceFiles.length > 1
+    ? sourceFiles.map((source, index) => [
+      `### 图片${index + 1}：${source.fileName || `第${index + 1}张`}`,
+      '这是一份演示识别结果，用于验证多图上传、任务创建、状态轮询与结果回填流程。'
+    ].join('\n'))
+    : [
+      '这是一份演示识别结果，用于验证上传、任务创建、状态轮询与结果回填流程。'
+    ];
+
+  return header.concat([
     '',
-    '这是一份演示识别结果，用于验证上传、任务创建、状态轮询与结果回填流程。',
+    ...sections,
+    '',
     '切换到微信 OCR 或 HTTP OCR 服务后，这里会显示真实识别文本。',
     '',
     '建议人工复核关键数字、专有名词与换行位置。'
-  ].join('\n');
+  ]).join('\n');
 }
 
 function extractPrintedText(result) {
@@ -112,6 +183,10 @@ function extractPrintedText(result) {
 function getOcrMode() {
   const mode = typeof ocrConfig.mode === 'string' ? ocrConfig.mode.trim() : '';
   return SUPPORTED_MODES.includes(mode) ? mode : 'mock';
+}
+
+function shouldFallbackToMock() {
+  return Boolean(ocrConfig && ocrConfig.fallbackToMockOnFailure);
 }
 
 function hasConfiguredHttpService() {
@@ -211,17 +286,16 @@ async function handleCreateTask(event) {
   const {
     ownerKey,
     userId,
-    sourceName,
-    sourceType,
-    sourceFileId,
-    sourceCloudPath,
     fileSize
   } = event;
 
   const normalizedOwnerKey = String(ownerKey || '').trim();
   const legacyUserId = String(userId || '').trim();
+  const sourceFiles = getSourceFiles(event);
+  const primarySource = sourceFiles[0] || null;
+  const totalFileSize = sourceFiles.reduce((sum, source) => sum + (source.fileSize || 0), 0);
 
-  if ((!normalizedOwnerKey && !legacyUserId) || !sourceName || !sourceFileId) {
+  if ((!normalizedOwnerKey && !legacyUserId) || !sourceFiles.length) {
     return { ok: false, message: '创建 OCR 任务缺少必要参数' };
   }
 
@@ -232,11 +306,12 @@ async function handleCreateTask(event) {
     userId: legacyUserId,
     provider: ocrConfig.provider || 'WeChat OCR',
     status: 'pending',
-    sourceName,
-    sourceType: sourceType || 'file',
-    sourceFileId,
-    sourceCloudPath: sourceCloudPath || '',
-    fileSize: fileSize || 0,
+    sourceFiles,
+    sourceName: buildSourceDisplayName(sourceFiles),
+    sourceType: buildSourceType(sourceFiles),
+    sourceFileId: primarySource ? primarySource.fileId : '',
+    sourceCloudPath: primarySource ? primarySource.cloudPath : '',
+    fileSize: fileSize || totalFileSize,
     markdown: '',
     rawJson: {},
     summary: '',
@@ -331,13 +406,13 @@ async function handleMockCompleteTask(event) {
   const data = {
     status: 'success',
     provider: 'MinerU',
-    markdown: makeMockContent(task.sourceName, task.sourceType),
+    markdown: makeMockContent(task),
     rawJson: _.set({
       mock: true,
-      sourceName: task.sourceName,
+      sourceFiles: getSourceFiles(task),
       provider: 'MinerU'
     }),
-    summary: '已通过内置演示模式生成演示识别内容',
+    summary: `已通过内置演示模式生成${Math.max(getSourceFiles(task).length, 1)}张图片的演示识别内容`,
     errorMessage: '',
     updatedAt: new Date()
   };
@@ -353,6 +428,24 @@ async function handleMockCompleteTask(event) {
   };
 }
 
+function buildMockResultForSource(source) {
+  const title = source && source.fileName ? source.fileName : '未命名扫描件';
+
+  return {
+    provider: 'MinerU',
+    markdown: [
+      `### ${title}`,
+      '当前环境未成功连接到可用 OCR 服务，已回退为演示识别结果。',
+      '如需真实识别，请在 cloudfunctions/ocr/config.js 中配置 http 模式并部署 ocr 云函数。'
+    ].join('\n'),
+    rawJson: {
+      mock: true,
+      reason: 'fallback'
+    },
+    summary: `已为 ${title} 生成演示识别内容`
+  };
+}
+
 async function getSourceTempUrl(sourceFileId) {
   const tempFile = await cloud.getTempFileURL({
     fileList: [sourceFileId]
@@ -361,7 +454,7 @@ async function getSourceTempUrl(sourceFileId) {
   return tempFile.fileList && tempFile.fileList[0] && tempFile.fileList[0].tempFileURL;
 }
 
-async function processTaskWithOfficial(taskId, task, tempUrl) {
+async function processTaskWithOfficial(source, tempUrl) {
   const officialResult = await cloud.openapi.ocr.printedText({
     type: 'photo',
     imgUrl: tempUrl
@@ -372,36 +465,28 @@ async function processTaskWithOfficial(taskId, task, tempUrl) {
     throw new Error('微信官方 OCR 已返回结果，但未提取到文本内容');
   }
 
-  const successTask = await markTask(taskId, {
-    status: 'success',
+  return {
     provider: 'WeChat OCR',
     markdown: plainText,
-    rawJson: _.set(officialResult || {}),
-    summary: '已通过微信官方 OCR 提取图片文本',
-    errorMessage: '',
-    updatedAt: new Date()
-  }, task);
-
-  return {
-    ok: true,
-    task: successTask
+    rawJson: officialResult || {},
+    summary: `已通过微信官方 OCR 提取${source.fileName || '图片'}文本`
   };
 }
 
-async function processTaskWithHttp(taskId, task, tempUrl) {
+async function processTaskWithHttp(task, source, tempUrl) {
   if (!hasConfiguredHttpService()) {
-    return { ok: false, message: '未配置真实 OCR 服务地址，请先更新 cloudfunctions/ocr/config.js' };
+    throw new Error('未配置真实 OCR 服务地址，请先更新 cloudfunctions/ocr/config.js');
   }
 
   const payload = JSON.stringify({
-    taskId,
+    taskId: task.id || task._id,
     ownerKey: task.ownerKey || task.username || task.userId,
     userId: task.userId,
     provider: ocrConfig.provider,
-    sourceName: task.sourceName,
-    sourceType: task.sourceType,
-    sourceFileId: task.sourceFileId,
-    sourceCloudPath: task.sourceCloudPath,
+    sourceName: source.fileName,
+    sourceType: source.type,
+    sourceFileId: source.fileId,
+    sourceCloudPath: source.cloudPath,
     fileUrl: tempUrl
   });
 
@@ -420,40 +505,46 @@ async function processTaskWithHttp(taskId, task, tempUrl) {
   }, payload);
 
   if (!result.ok) {
-    const failedTask = await markTask(taskId, {
-      status: 'failed',
-      errorMessage: result.message || 'OCR 服务处理失败',
-      updatedAt: new Date()
-    }, task);
-
-    return {
-      ok: false,
-      message: failedTask.errorMessage,
-      task: failedTask
-    };
+    throw new Error(result.message || 'OCR 服务处理失败');
   }
 
   if (!result.markdown) {
     return {
-      ok: true,
-      task: task
+      provider: ocrConfig.provider || task.provider,
+      markdown: '',
+      rawJson: result.rawJson || {},
+      summary: result.summary || ''
     };
   }
 
-  const successTask = await markTask(taskId, {
-    status: 'success',
+  return {
     provider: ocrConfig.provider || task.provider,
     markdown: result.markdown,
-    rawJson: _.set(result.rawJson || {}),
-    summary: result.summary || '识别完成',
-    errorMessage: '',
-    updatedAt: new Date()
-  }, task);
-
-  return {
-    ok: true,
-    task: successTask
+    rawJson: result.rawJson || {},
+    summary: result.summary || `已识别${source.fileName || '图片'}`
   };
+}
+
+function buildCombinedMarkdown(items) {
+  const validItems = items.filter((item) => item && item.markdown);
+  if (!validItems.length) {
+    return '';
+  }
+
+  if (validItems.length === 1) {
+    return validItems[0].markdown;
+  }
+
+  return validItems.map((item, index) => {
+    const title = item.source && item.source.fileName
+      ? item.source.fileName
+      : `第${index + 1}张图片`;
+
+    return [
+      `### 图片${index + 1}：${title}`,
+      item.markdown
+    ].join('\n');
+  }).join('\n\n');
 }
 
 async function handleProcessTask(event) {
@@ -478,6 +569,11 @@ async function handleProcessTask(event) {
     return { ok: false, message: '未配置真实 OCR 服务地址，请先更新 cloudfunctions/ocr/config.js' };
   }
 
+  const sourceFiles = getSourceFiles(task);
+  if (!sourceFiles.length) {
+    return { ok: false, message: 'OCR 任务缺少图片文件' };
+  }
+
   const processingTask = await markTask(taskId, {
     status: 'processing',
     provider: mode === 'official' ? 'WeChat OCR' : (ocrConfig.provider || task.provider),
@@ -486,28 +582,83 @@ async function handleProcessTask(event) {
   }, task);
 
   try {
-    const tempUrl = await getSourceTempUrl(task.sourceFileId);
-    if (!tempUrl) {
-      throw new Error('获取云存储临时下载链接失败');
-    }
+    const results = [];
 
-    if (mode === 'official') {
-      return processTaskWithOfficial(taskId, processingTask, tempUrl);
-    }
-
-    if (mode === 'http') {
-      return processTaskWithHttp(taskId, processingTask, tempUrl);
-    }
-
-    try {
-      return await processTaskWithOfficial(taskId, processingTask, tempUrl);
-    } catch (officialError) {
-      if (hasConfiguredHttpService()) {
-        return processTaskWithHttp(taskId, processingTask, tempUrl);
+    for (let index = 0; index < sourceFiles.length; index += 1) {
+      const source = sourceFiles[index];
+      const tempUrl = await getSourceTempUrl(source.fileId);
+      if (!tempUrl) {
+        throw new Error(`获取第 ${index + 1} 张图片的云存储临时下载链接失败`);
       }
 
-      throw new Error(normalizeOfficialOcrError(officialError));
+      if (mode === 'official') {
+        results.push({
+          source,
+          ...(await processTaskWithOfficial(source, tempUrl))
+        });
+        continue;
+      }
+
+      if (mode === 'http') {
+        results.push({
+          source,
+          ...(await processTaskWithHttp(processingTask, source, tempUrl))
+        });
+        continue;
+      }
+
+      try {
+        results.push({
+          source,
+          ...(await processTaskWithOfficial(source, tempUrl))
+        });
+      } catch (officialError) {
+        if (hasConfiguredHttpService()) {
+          results.push({
+            source,
+            ...(await processTaskWithHttp(processingTask, source, tempUrl))
+          });
+          continue;
+        }
+
+        if (shouldFallbackToMock()) {
+          results.push({
+            source,
+            ...buildMockResultForSource(source)
+          });
+          continue;
+        }
+
+        throw new Error(normalizeOfficialOcrError(officialError));
+      }
     }
+
+    const markdown = buildCombinedMarkdown(results);
+    if (!markdown) {
+      throw new Error('OCR 已返回结果，但未提取到文本内容');
+    }
+
+    const successTask = await markTask(taskId, {
+      status: 'success',
+      provider: results[0] && results[0].provider ? results[0].provider : processingTask.provider,
+      markdown,
+      rawJson: _.set({
+        sources: results.map((item) => ({
+          source: item.source,
+          provider: item.provider,
+          summary: item.summary,
+          rawJson: item.rawJson || {}
+        }))
+      }),
+      summary: `已识别${sourceFiles.length}张图片`,
+      errorMessage: '',
+      updatedAt: new Date()
+    }, task);
+
+    return {
+      ok: true,
+      task: successTask
+    };
   } catch (error) {
     const failedTask = await markTask(taskId, {
       status: 'failed',

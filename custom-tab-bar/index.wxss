@@ -1,0 +1,58 @@
+.custom-tab-bar {
+  position: fixed;
+  left: 128rpx;
+  right: 128rpx;
+  bottom: 28rpx;
+  bottom: calc(28rpx + constant(safe-area-inset-bottom));
+  bottom: calc(28rpx + env(safe-area-inset-bottom));
+  z-index: 999;
+}
+
+.custom-tab-bar--hidden {
+  display: none;
+}
+
+.custom-tab-bar__inner {
+  display: flex;
+  align-items: center;
+  padding: 18rpx 28rpx 16rpx;
+  background: #ffffff;
+  border-radius: 999rpx;
+  box-sizing: border-box;
+  box-shadow: none;
+}
+
+.custom-tab-bar__item {
+  flex: 1;
+  min-width: 0;
+  height: 92rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  padding: 0 20rpx;
+  box-sizing: border-box;
+}
+
+.custom-tab-bar__icon {
+  width: 42rpx;
+  height: 42rpx;
+  display: block;
+  flex-shrink: 0;
+}
+
+.custom-tab-bar__label {
+  display: block;
+  min-width: 100%;
+  margin-top: -12rpx;
+  color: #8b949e;
+  font-size: 24rpx;
+  line-height: 24rpx;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.custom-tab-bar__label--active {
+  color: #1b2129;
+}

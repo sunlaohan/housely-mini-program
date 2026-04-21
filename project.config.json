@@ -1,7 +1,28 @@
 {
   "description": "Housely Docs mini program",
   "packOptions": {
-    "ignore": [],
+    "ignore": [
+      {
+        "type": "folder",
+        "value": ".git"
+      },
+      {
+        "type": "folder",
+        "value": ".github"
+      },
+      {
+        "type": "folder",
+        "value": ".cursor"
+      },
+      {
+        "type": "folder",
+        "value": "services"
+      },
+      {
+        "type": "file",
+        "value": "assets/auth/banner-video.mp4"
+      }
+    ],
     "include": []
   },
   "setting": {
@@ -36,7 +57,7 @@
   "compileType": "miniprogram",
   "cloudfunctionRoot": "cloudfunctions/",
   "libVersion": "3.15.1",
-  "appid": "touristappid",
+  "appid": "wx2729dd6c3e84c3f0",
   "projectname": "housely",
   "simulatorType": "wechat",
   "condition": {},

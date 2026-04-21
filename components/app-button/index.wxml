@@ -1,0 +1,14 @@
+<button
+  class="{{rootClassName}}"
+  style="{{rootStyleText}}"
+  loading="{{loading}}"
+  disabled="{{disabled}}"
+  form-type="{{formType}}"
+  open-type="{{openType}}"
+  bindtap="onTap"
+  bindchooseavatar="onChooseAvatar"
+>
+  <slot name="prefix"></slot>
+  <text wx:if="{{text}}" class="app-button__text">{{text}}</text>
+  <slot></slot>
+</button>

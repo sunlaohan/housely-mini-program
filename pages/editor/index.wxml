@@ -1,17 +1,101 @@
-<view class="page-shell">
-  <view class="form-card">
-    <button class="primary-btn" loading="{{isScanning}}" bindtap="startScan">{{mode === 'edit' ? '重新拍照 / 上传图片' : '拍照 / 上传图片'}}</button>
-
-    <view class="field">
-      <text class="field-label">文件名称</text>
-      <input class="field-input" placeholder="例如：租房合同扫描件" data-field="name" bindinput="onInput" value="{{name}}" />
+<view class="editor-page">
+  <view class="editor-navbar" style="padding-top: {{statusBarHeight}}px;">
+    <view class="editor-navbar__bar" style="height: {{navBarHeight}}px; padding-right: {{capsuleSafeWidth}}px;">
+      <view class="editor-navbar__back" bindtap="goBack">
+        <image class="editor-navbar__back-icon" src="../../assets/auth/arrow-left.svg" mode="aspectFit" />
+      </view>
+      <view class="editor-navbar__title">{{pageTitle}}</view>
     </view>
+  </view>
 
-    <view class="field">
-      <text class="field-label">识别内容</text>
-      <textarea class="field-textarea" auto-height maxlength="-1" placeholder="扫描后生成的识别文本会显示在这里" data-field="markdown" bindinput="onInput" value="{{markdown}}" />
+  <scroll-view class="editor-scroll" scroll-y="{{true}}">
+    <view class="editor-body">
+      <view class="editor-upload-card">
+        <view class="editor-section-title">拍照/上传图片</view>
+
+        <view class="editor-upload-grid">
+          <view wx:if="{{sourceFiles.length < maxSourceCount}}" class="editor-upload-trigger" bindtap="pickImages">
+            <image class="editor-upload-trigger__icon" src="../../assets/auth/photograph.svg" mode="aspectFit" />
+          </view>
+
+          <block wx:for="{{sourceFiles}}" wx:key="key">
+            <view class="editor-upload-preview">
+              <image
+                class="editor-upload-preview__image"
+                src="{{item.previewUrl}}"
+                mode="aspectFill"
+                data-key="{{item.key}}"
+                bindtap="previewSource"
+              />
+              <image
+                class="editor-upload-preview__remove"
+                src="../../assets/auth/close-mask.svg"
+                mode="aspectFit"
+                data-key="{{item.key}}"
+                catchtap="removeSource"
+              />
+            </view>
+          </block>
+        </view>
+
+        <view wx:if="{{sourceFiles.length}}" class="editor-upload-tip">
+          已选择 {{sourceFiles.length}} / {{maxSourceCount}} 张图片
+        </view>
+
+        <app-button variant="soft" width-mode="full" loading="{{isScanning}}" disabled="{{isScanning}}" bind:press="startScan">
+          <image slot="prefix" class="editor-scan-btn__icon" src="../../assets/auth/scan.svg" mode="aspectFit" />
+          <text>{{ocrTaskId || markdown ? '再次识别内容' : '开始识别内容'}}</text>
+        </app-button>
+
+        <view wx:if="{{ocrMessage}}" class="editor-status">
+          <text class="editor-status__text">{{ocrMessage}}</text>
+          <app-button
+            wx:if="{{ocrTaskId && ocrStatus !== 'success'}}"
+            variant="outline"
+            width-mode="full"
+            loading="{{isScanning && ocrStatus !== 'success'}}"
+            bind:press="refreshOcrResult"
+          >
+            查询识别结果
+          </app-button>
+        </view>
+      </view>
+
+      <view class="editor-field-card">
+        <view class="editor-field-card__label">
+          <text class="editor-field-card__required">*</text>
+          <text>文件名称</text>
+        </view>
+        <input
+          class="editor-field-card__input"
+          placeholder="例如：小米空调说明书"
+          placeholder-class="editor-field-card__placeholder"
+          data-field="name"
+          bindinput="onInput"
+          value="{{name}}"
+        />
+      </view>
+
+      <view class="editor-field-card editor-field-card--textarea">
+        <view class="editor-field-card__label">
+          <text class="editor-field-card__required">*</text>
+          <text>描述/识别内容</text>
+        </view>
+        <textarea
+          class="editor-field-card__textarea"
+          auto-height="{{true}}"
+          maxlength="-1"
+          placeholder="上传图片后的识别文本会显示在这里"
+          placeholder-class="editor-field-card__placeholder"
+          data-field="markdown"
+          bindinput="onInput"
+          value="{{markdown}}"
+        />
+      </view>
     </view>
+  </scroll-view>
 
-    <button class="primary-btn" style="margin-top: 32rpx;" bindtap="saveDocument">{{mode === 'edit' ? '保存修改' : '保存到首页'}}</button>
+  <view class="editor-footer">
+    <app-button text="{{mode === 'edit' ? '保存修改' : '确定'}}" variant="dark" width-mode="full" loading="{{isSaving}}" disabled="{{isScanning || isSaving}}" bind:press="saveDocument" />
   </view>
 </view>

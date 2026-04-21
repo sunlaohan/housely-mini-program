@@ -1,0 +1,6 @@
+<view wx:if="{{mounted}}" class="bottom-sheet {{show ? 'bottom-sheet--show' : ''}}" catchtouchmove="noop">
+  <view class="bottom-sheet__mask" bindtap="onMaskTap"></view>
+  <view class="bottom-sheet__panel" catchtap="noop">
+    <slot></slot>
+  </view>
+</view>
