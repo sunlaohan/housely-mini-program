@@ -10,6 +10,18 @@ const documents = db.collection('documents');
 const ocrTasks = db.collection('ocr_tasks');
 const feedbacks = db.collection('feedbacks');
 const DEFAULT_AVATAR = '/assets/auth/boy-1.png';
+const DEFAULT_PREVIEW_FONT_SCALE = 1;
+const MIN_PREVIEW_FONT_SCALE = 1;
+const MAX_PREVIEW_FONT_SCALE = 2.4;
+
+function normalizePreviewFontScale(value) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) {
+    return DEFAULT_PREVIEW_FONT_SCALE;
+  }
+
+  return Math.min(Math.max(numericValue, MIN_PREVIEW_FONT_SCALE), MAX_PREVIEW_FONT_SCALE);
+}
 
 function sanitizeUser(user) {
   if (!user) {
@@ -20,7 +32,8 @@ function sanitizeUser(user) {
     id: user._id || user.id || '',
     username: user.username || '',
     avatar: user.avatar || DEFAULT_AVATAR,
-    createdAt: user.createdAt || ''
+    createdAt: user.createdAt || '',
+    previewFontScale: normalizePreviewFontScale(user.previewFontScale)
   };
 }
 
@@ -82,7 +95,8 @@ async function handleLoginOrCreate(event) {
       data: {
         username,
         avatar: DEFAULT_AVATAR,
-        createdAt
+        createdAt,
+        previewFontScale: DEFAULT_PREVIEW_FONT_SCALE
       }
     });
 
@@ -90,7 +104,8 @@ async function handleLoginOrCreate(event) {
       _id: result._id,
       username,
       avatar: DEFAULT_AVATAR,
-      createdAt
+      createdAt,
+      previewFontScale: DEFAULT_PREVIEW_FONT_SCALE
     };
   }
 
@@ -120,6 +135,30 @@ async function handleUpdateAvatar(event) {
     user: sanitizeUser({
       ...user,
       avatar
+    })
+  };
+}
+
+async function handleUpdatePreviewFontScale(event) {
+  const username = normalizeUsername(event.username);
+  const previewFontScale = normalizePreviewFontScale(event.previewFontScale);
+  const user = await findUserByUsername(username);
+
+  if (!user) {
+    return { ok: false, message: '账号不存在' };
+  }
+
+  await users.doc(user._id).update({
+    data: {
+      previewFontScale
+    }
+  });
+
+  return {
+    ok: true,
+    user: sanitizeUser({
+      ...user,
+      previewFontScale
     })
   };
 }
@@ -166,6 +205,8 @@ exports.main = async (event) => {
         return handleLoginOrCreate(event);
       case 'updateAvatar':
         return handleUpdateAvatar(event);
+      case 'updatePreviewFontScale':
+        return handleUpdatePreviewFontScale(event);
       case 'deleteAccount':
         return handleDeleteAccount(event);
       case 'loginByPhoneCode':

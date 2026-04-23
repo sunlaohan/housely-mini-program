@@ -1,5 +1,17 @@
 const { KEYS, read, write, remove } = require('./storage');
 const DEFAULT_AVATAR = '/assets/auth/boy-1.png';
+const DEFAULT_PREVIEW_FONT_SCALE = 1;
+const MIN_PREVIEW_FONT_SCALE = 1;
+const MAX_PREVIEW_FONT_SCALE = 2.4;
+
+function normalizePreviewFontScale(value) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) {
+    return DEFAULT_PREVIEW_FONT_SCALE;
+  }
+
+  return Math.min(Math.max(numericValue, MIN_PREVIEW_FONT_SCALE), MAX_PREVIEW_FONT_SCALE);
+}
 
 function sanitizeUser(user) {
   if (!user) {
@@ -10,7 +22,8 @@ function sanitizeUser(user) {
     id: user.id || user._id || '',
     username: user.username || '',
     avatar: user.avatar || DEFAULT_AVATAR,
-    createdAt: user.createdAt || ''
+    createdAt: user.createdAt || '',
+    previewFontScale: normalizePreviewFontScale(user.previewFontScale)
   };
 }
 
@@ -55,6 +68,19 @@ async function updateAvatar(username, avatar) {
   return result;
 }
 
+async function updatePreviewFontScale(username, previewFontScale) {
+  const result = await callAuth('updatePreviewFontScale', {
+    username,
+    previewFontScale: normalizePreviewFontScale(previewFontScale)
+  });
+
+  if (result.ok && result.user) {
+    write(KEYS.SESSION, sanitizeUser(result.user));
+  }
+
+  return result;
+}
+
 function getCurrentUser() {
   return read(KEYS.SESSION, null);
 }
@@ -93,5 +119,6 @@ module.exports = {
   loginWithUsername,
   logout,
   requireAuth,
-  updateAvatar
+  updateAvatar,
+  updatePreviewFontScale
 };

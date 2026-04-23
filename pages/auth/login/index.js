@@ -1,7 +1,8 @@
 const { loginWithUsername } = require('../../../utils/account');
 const { getAboutBannerMedia } = require('../../../utils/about');
+const { withPageShare } = require('../../../utils/share');
 
-Page({
+Page(withPageShare({
   data: {
     username: '',
     isSubmitting: false,
@@ -136,4 +137,4 @@ Page({
 
   noop() {}
 
-});
+}));

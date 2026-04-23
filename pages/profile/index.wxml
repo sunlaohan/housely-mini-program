@@ -3,15 +3,6 @@
     <view class="profile-navbar__bar" style="height: {{navBarHeight}}px; padding-right: {{capsuleSafeWidth}}px;">
       <view class="profile-navbar__spacer"></view>
       <view class="profile-navbar__title">家物小记</view>
-      <view class="profile-navbar__capsule">
-        <view class="profile-navbar__capsule-inner">
-          <view class="profile-navbar__capsule-dot"></view>
-          <view class="profile-navbar__capsule-dot"></view>
-          <view class="profile-navbar__capsule-dot"></view>
-          <view class="profile-navbar__capsule-divider"></view>
-          <view class="profile-navbar__capsule-ring"></view>
-        </view>
-      </view>
     </view>
   </view>
 

@@ -1,10 +1,13 @@
 const { ensureAuth } = require('../../utils/page');
 const { getDocumentById } = require('../../utils/docs');
+const { withPageShare } = require('../../utils/share');
+const { getCurrentUser, updatePreviewFontScale } = require('../../utils/account');
 
 const DEFAULT_TITLE = '未命名文档';
 const MIN_FONT_SCALE = 1;
 const MAX_FONT_SCALE = 2.4;
 const FONT_STEP_RATIO = 1.2;
+const FONT_SCALE_SAVE_DELAY = 300;
 
 function getNavMetrics() {
   const systemInfo = wx.getSystemInfoSync();
@@ -50,6 +53,36 @@ function buildFontState(scale = 1) {
     contentTextStyle: `font-size:${contentFontSize}rpx;line-height:${contentLineHeight}rpx;`,
     emptyLineStyle: `height:${contentLineHeight}rpx;`
   };
+}
+
+function getUserPreviewFontScale(user) {
+  const fontScale = Number(user && user.previewFontScale);
+  if (!Number.isFinite(fontScale)) {
+    return MIN_FONT_SCALE;
+  }
+
+  return clamp(fontScale, MIN_FONT_SCALE, MAX_FONT_SCALE);
+}
+
+function normalizePreviewSource(source, index = 0) {
+  const fileId = String(source && (source.fileId || source.sourceFileId) || '').trim();
+  const previewUrl = String(source && source.previewUrl || '').trim();
+  const tempFilePath = String(source && source.tempFilePath || '').trim();
+
+  return {
+    key: String(source && source.key || '').trim() || fileId || tempFilePath || `document-source-${index}`,
+    fileId,
+    fileName: String(source && (source.fileName || source.sourceName || source.name) || '').trim(),
+    type: String(source && (source.type || source.sourceType) || 'image').trim() || 'image',
+    previewUrl: previewUrl || tempFilePath,
+    tempFilePath
+  };
+}
+
+function normalizePreviewSources(sources = []) {
+  return (Array.isArray(sources) ? sources : [])
+    .map((source, index) => normalizePreviewSource(source, index))
+    .filter((source) => source.fileId || source.previewUrl);
 }
 
 function buildSegments(text = '', keyword = '') {
@@ -149,7 +182,7 @@ function buildPreviewData(doc, keyword = '') {
   };
 }
 
-Page({
+Page(withPageShare({
   data: {
     currentUser: null,
     docId: '',
@@ -166,26 +199,38 @@ Page({
     fontScale: 1,
     titleTextStyle: '',
     contentTextStyle: '',
-    emptyLineStyle: ''
+    emptyLineStyle: '',
+    sourcePreviewUrls: []
   },
 
   onLoad(options) {
     const docId = String(options && options.id || '').trim();
+    const currentUser = getCurrentUser();
+    const initialFontScale = getUserPreviewFontScale(currentUser);
+
     this.setData({
       docId,
       ...getNavMetrics(),
-      ...buildFontState(1)
+      ...buildFontState(initialFontScale)
     });
   },
 
   onShow() {
     ensureAuth(this, async (user) => {
+      this.lastSavedFontScale = getUserPreviewFontScale(user);
       getApp().setCurrentUser(user);
+      this.applyFontScale(this.lastSavedFontScale);
       await this.loadDocument(user);
     });
   },
 
+  onHide() {
+    this.flushPendingFontScaleSave();
+  },
+
   onUnload() {
+    this.flushPendingFontScaleSave();
+
     if (this.scrollTimer) {
       clearTimeout(this.scrollTimer);
       this.scrollTimer = null;
@@ -208,13 +253,51 @@ Page({
         return;
       }
 
-      this.updatePreviewData(doc, this.data.searchKeyword, {
+      const sourceFiles = await this.hydrateSourceFiles(doc.sourceFiles || []);
+      const hydratedDoc = {
+        ...doc,
+        sourceFiles
+      };
+
+      this.updatePreviewData(hydratedDoc, this.data.searchKeyword, {
         searchMode: this.data.searchMode,
         searchFocus: false,
         shouldScroll: Boolean(normalizeKeyword(this.data.searchKeyword))
       });
     } catch (error) {
       wx.showToast({ title: '加载文件失败', icon: 'none' });
+    }
+  },
+
+  async hydrateSourceFiles(sourceFiles) {
+    const normalizedSources = normalizePreviewSources(sourceFiles);
+    const pendingFileIds = normalizedSources
+      .filter((source) => !source.previewUrl && source.fileId)
+      .map((source) => source.fileId);
+
+    if (!pendingFileIds.length) {
+      return normalizedSources;
+    }
+
+    try {
+      const result = await wx.cloud.getTempFileURL({
+        fileList: pendingFileIds
+      });
+      const urlMap = {};
+
+      (result.fileList || []).forEach((file) => {
+        if (file && file.fileID && file.tempFileURL) {
+          urlMap[file.fileID] = file.tempFileURL;
+        }
+      });
+
+      return normalizedSources.map((source) => ({
+        ...source,
+        previewUrl: source.previewUrl || urlMap[source.fileId] || ''
+      }));
+    } catch (error) {
+      console.error('hydrateSourceFiles failed', error);
+      return normalizedSources;
     }
   },
 
@@ -228,7 +311,10 @@ Page({
       doc,
       titleSegments: previewData.titleSegments,
       contentLines: previewData.contentLines,
-      searchKeyword: keyword
+      searchKeyword: keyword,
+      sourcePreviewUrls: (doc.sourceFiles || [])
+        .map((source) => source.previewUrl || source.tempFilePath || '')
+        .filter(Boolean)
     };
 
     if (typeof options.searchMode === 'boolean') {
@@ -345,13 +431,88 @@ Page({
     });
   },
 
+  previewSource(event) {
+    const key = String(event.currentTarget.dataset.key || '').trim();
+    const sourceFiles = Array.isArray(this.data.doc && this.data.doc.sourceFiles) ? this.data.doc.sourceFiles : [];
+    const currentSource = sourceFiles.find((source) => source.key === key);
+    const previewUrls = this.data.sourcePreviewUrls;
+
+    if (!currentSource || !currentSource.previewUrl || !previewUrls.length) {
+      return;
+    }
+
+    wx.previewImage({
+      current: currentSource.previewUrl,
+      urls: previewUrls
+    });
+  },
+
+  applyFontScale(nextScale) {
+    this.setData(buildFontState(nextScale));
+  },
+
+  scheduleFontScaleSave(nextScale) {
+    this.pendingFontScale = clamp(Number(nextScale) || MIN_FONT_SCALE, MIN_FONT_SCALE, MAX_FONT_SCALE);
+
+    if (this.fontScaleSaveTimer) {
+      clearTimeout(this.fontScaleSaveTimer);
+      this.fontScaleSaveTimer = null;
+    }
+
+    this.fontScaleSaveTimer = setTimeout(() => {
+      this.fontScaleSaveTimer = null;
+      this.flushPendingFontScaleSave();
+    }, FONT_SCALE_SAVE_DELAY);
+  },
+
+  flushPendingFontScaleSave() {
+    if (this.fontScaleSaveTimer) {
+      clearTimeout(this.fontScaleSaveTimer);
+      this.fontScaleSaveTimer = null;
+    }
+
+    if (!Number.isFinite(this.pendingFontScale)) {
+      return;
+    }
+
+    const nextScale = this.pendingFontScale;
+    this.pendingFontScale = null;
+    this.persistFontScalePreference(nextScale);
+  },
+
+  async persistFontScalePreference(nextScale) {
+    const currentUser = this.data.currentUser || getCurrentUser();
+    const username = String(currentUser && currentUser.username || '').trim();
+    const normalizedScale = clamp(Number(nextScale) || MIN_FONT_SCALE, MIN_FONT_SCALE, MAX_FONT_SCALE);
+
+    if (!username || normalizedScale === this.lastSavedFontScale) {
+      return;
+    }
+
+    this.lastSavedFontScale = normalizedScale;
+
+    try {
+      const result = await updatePreviewFontScale(username, normalizedScale);
+      if (result.ok && result.user) {
+        getApp().setCurrentUser(result.user);
+        this.setData({
+          currentUser: result.user
+        });
+      }
+    } catch (error) {
+      console.error('persistFontScalePreference failed', error);
+      this.lastSavedFontScale = null;
+    }
+  },
+
   zoomOutText() {
     const nextScale = clamp(Number((this.data.fontScale * 0.8).toFixed(2)), MIN_FONT_SCALE, MAX_FONT_SCALE);
     if (nextScale === this.data.fontScale) {
       return;
     }
 
-    this.setData(buildFontState(nextScale));
+    this.applyFontScale(nextScale);
+    this.scheduleFontScaleSave(nextScale);
   },
 
   zoomInText() {
@@ -360,6 +521,7 @@ Page({
       return;
     }
 
-    this.setData(buildFontState(nextScale));
+    this.applyFontScale(nextScale);
+    this.scheduleFontScaleSave(nextScale);
   }
-});
+}));

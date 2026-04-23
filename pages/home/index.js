@@ -1,5 +1,6 @@
 const { ensureAuth, formatDate } = require('../../utils/page');
 const { getDocuments, deleteDocument, deleteDocuments } = require('../../utils/docs');
+const { withPageShare } = require('../../utils/share');
 
 function escapeHtml(text = '') {
   return String(text || '')
@@ -149,7 +150,7 @@ function scoreDocMatch(doc, keyword = '') {
   };
 }
 
-Page({
+Page(withPageShare({
   data: {
     currentUser: null,
     allDocs: [],
@@ -489,4 +490,4 @@ Page({
       this.searchTimer = null;
     }
   }
-});
+}));

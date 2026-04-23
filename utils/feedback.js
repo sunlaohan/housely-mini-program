@@ -1,9 +1,3 @@
-const FEEDBACK_RECEIVER_EMAIL = '1291362786@qq.com';
-
-function feedbackCollection() {
-  return wx.cloud.database().collection('feedbacks');
-}
-
 function sanitizeCloudPathSegment(value, fallback = 'anonymous') {
   const normalized = String(value || '')
     .trim()
@@ -86,39 +80,38 @@ async function uploadAttachments(sources, ownerKey) {
 async function submitFeedback(user, payload) {
   const ownerKey = String(user && user.username || '').trim();
   const userId = String(user && user.id || '').trim();
-  const now = new Date();
   const attachments = await uploadAttachments(payload.attachments || [], ownerKey);
 
-  const record = {
-    ownerKey,
-    username: ownerKey,
-    userId,
-    receiverEmail: FEEDBACK_RECEIVER_EMAIL,
-    contact: String(payload.contact || '').trim(),
-    content: String(payload.content || '').trim(),
-    attachments: attachments.map((attachment) => ({
-      fileName: attachment.fileName,
-      type: attachment.type,
-      fileId: attachment.fileId,
-      cloudPath: attachment.cloudPath,
-      fileSize: attachment.size || 0
-    })),
-    createdAt: now,
-    updatedAt: now
-  };
+  let result;
+  try {
+    result = await wx.cloud.callFunction({
+      name: 'feedback',
+      data: {
+        action: 'submit',
+        ownerKey,
+        userId,
+        contact: String(payload.contact || '').trim(),
+        content: String(payload.content || '').trim(),
+        attachments: attachments.map((attachment) => ({
+          fileName: attachment.fileName,
+          type: attachment.type,
+          fileId: attachment.fileId,
+          cloudPath: attachment.cloudPath,
+          fileSize: attachment.size || 0
+        }))
+      }
+    });
+  } catch (error) {
+    const message = String(error && (error.errMsg || error.message) || '反馈云函数调用失败').trim();
+    const nextError = new Error(message || '反馈云函数调用失败');
+    nextError.errMsg = message;
+    throw nextError;
+  }
 
-  const result = await feedbackCollection().add({
-    data: record
-  });
-
-  return {
-    id: result._id,
-    ...record
-  };
+  return result.result || {};
 }
 
 module.exports = {
-  FEEDBACK_RECEIVER_EMAIL,
   normalizeAttachment,
   submitFeedback
 };

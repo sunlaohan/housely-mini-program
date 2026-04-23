@@ -1,6 +1,7 @@
 const { getCurrentUser } = require('../../utils/account');
+const { withPageShare } = require('../../utils/share');
 
-Page({
+Page(withPageShare({
   onLoad() {
     const user = getCurrentUser();
 
@@ -16,4 +17,4 @@ Page({
       url: '/pages/auth/login/index'
     });
   }
-});
+}));

@@ -2,6 +2,7 @@ const { ensureAuth } = require('../../utils/page');
 const { logout, updateAvatar, deleteAccount } = require('../../utils/account');
 const { normalizeAttachment, submitFeedback } = require('../../utils/feedback');
 const { getAboutBannerMedia } = require('../../utils/about');
+const { withPageShare } = require('../../utils/share');
 const DEFAULT_AVATAR = '/assets/auth/boy-1.png';
 
 const BUILTIN_AVATARS = [
@@ -34,7 +35,34 @@ function getNavMetrics() {
   };
 }
 
-Page({
+function normalizeFeedbackErrorMessage(error) {
+  const rawMessage = String(error && (error.errMsg || error.message) || '提交失败，请稍后再试').trim();
+  if (!rawMessage) {
+    return '提交失败，请稍后再试';
+  }
+
+  let message = rawMessage
+    .replace(/^cloud\.callFunction:fail\s*/i, '')
+    .replace(/^Error:\s*/i, '')
+    .trim();
+
+  if (message.includes('|')) {
+    const segments = message.split('|').map((item) => item.trim()).filter(Boolean);
+    if (segments.length) {
+      message = segments[segments.length - 1];
+    }
+  }
+
+  message = message.replace(/^Error:\s*/i, '').trim();
+
+  if (message.includes('collection not exists') || message.includes('Db or Table not exist: feedbacks')) {
+    return '当前云环境缺少 feedbacks 集合，请先在云开发数据库中创建 feedbacks 集合';
+  }
+
+  return message || rawMessage;
+}
+
+Page(withPageShare({
   data: {
     currentUser: null,
     statusBarHeight: 20,
@@ -494,20 +522,34 @@ Page({
     });
 
     try {
-      await submitFeedback(this.data.currentUser, this.data.feedbackForm);
+      const result = await submitFeedback(this.data.currentUser, this.data.feedbackForm);
+      if (!result.ok) {
+        throw new Error(result.message || '提交失败，请稍后再试');
+      }
+
       this.resetFeedbackForm();
       this.setData({
         feedbackVisible: false
       });
+
+      if (result.mailDelivered === false) {
+        wx.showToast({
+          title: String(result.message || '反馈已保存，但邮件发送失败').slice(0, 30),
+          icon: 'none'
+        });
+        return;
+      }
+
       wx.showToast({
         title: '提交成功',
         icon: 'success'
       });
     } catch (error) {
       console.error('submitFeedback failed', error);
-      wx.showToast({
-        title: '提交失败，请稍后再试',
-        icon: 'none'
+      wx.showModal({
+        title: '提交失败',
+        content: normalizeFeedbackErrorMessage(error),
+        showCancel: false
       });
     } finally {
       this.setData({
@@ -546,4 +588,4 @@ Page({
       }
     });
   }
-});
+}));

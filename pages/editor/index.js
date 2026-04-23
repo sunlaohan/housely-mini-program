@@ -1,6 +1,7 @@
 const { ensureAuth } = require('../../utils/page');
 const { addDocument, getDocumentById, updateDocument } = require('../../utils/docs');
 const { chooseImageSources, createDraftFromSources, refreshDraftFromTask } = require('../../utils/scanner');
+const { withPageShare } = require('../../utils/share');
 
 function getNavMetrics() {
   const systemInfo = wx.getSystemInfoSync();
@@ -74,7 +75,7 @@ function toStoredSources(sourceFiles) {
   })).filter((source) => source.fileId);
 }
 
-Page({
+Page(withPageShare({
   data: {
     currentUser: null,
     pageTitle: '添加',
@@ -544,4 +545,4 @@ Page({
       this.setData({ isSaving: false });
     }
   }
-});
+}));

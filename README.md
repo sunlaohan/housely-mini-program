@@ -70,6 +70,7 @@
 - `utils/about.js`：关于页视频 / 封面资源读取
 - `cloudfunctions/auth`：账号相关云函数
 - `cloudfunctions/ocr`：OCR 任务云函数
+- `cloudfunctions/feedback`：反馈落库与邮件发送
 - `services/mineru_worker`：可选的 HTTP OCR / MinerU 适配服务
 
 ## 快速开始
@@ -80,6 +81,7 @@
 4. 在开发者工具中右键部署以下云函数，选择“上传并部署：云端安装依赖”：
    - `cloudfunctions/auth`
    - `cloudfunctions/ocr`
+   - `cloudfunctions/feedback`
 5. 在云开发数据库中手动创建以下集合：
    - `users`
    - `documents`
@@ -119,6 +121,18 @@ module.exports = {
 ```
 
 修改 OCR 配置后，请重新部署 `cloudfunctions/ocr`。
+
+## 意见反馈邮件通知
+
+“我的”页的意见反馈会写入 `feedbacks` 集合，并通过 [`cloudfunctions/feedback/config.js`](./cloudfunctions/feedback/config.js) 中的 SMTP 配置发送到 `1291362786@qq.com`。
+
+首次启用前请完成以下配置：
+
+1. 打开 QQ 邮箱并开启 SMTP 服务
+2. 将 `cloudfunctions/feedback/config.js` 里的 `pass` 改成 QQ 邮箱 SMTP 授权码
+3. 重新部署 `cloudfunctions/feedback`
+
+未配置授权码时，反馈仍会保存到数据库，但页面会提示“反馈已保存，邮件待配置”。
 
 ## 关于页媒体资源
 
