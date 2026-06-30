@@ -137,4 +137,6 @@ Page(withPageShare({
 
   noop() {}
 
+}, {
+  enableTimeline: true
 }));

@@ -1,7 +1,7 @@
 const { ensureAuth } = require('../../utils/page');
 const { getDocumentById } = require('../../utils/docs');
 const { withPageShare } = require('../../utils/share');
-const { getCurrentUser, updatePreviewFontScale } = require('../../utils/account');
+const { getCurrentUser, updateLocalPreviewFontScale, updatePreviewFontScale } = require('../../utils/account');
 
 const DEFAULT_TITLE = '未命名文档';
 const MIN_FONT_SCALE = 1;
@@ -451,6 +451,18 @@ Page(withPageShare({
     this.setData(buildFontState(nextScale));
   },
 
+  syncLocalFontScale(nextScale) {
+    const nextUser = updateLocalPreviewFontScale(nextScale);
+    if (!nextUser) {
+      return;
+    }
+
+    getApp().setCurrentUser(nextUser);
+    this.setData({
+      currentUser: nextUser
+    });
+  },
+
   scheduleFontScaleSave(nextScale) {
     this.pendingFontScale = clamp(Number(nextScale) || MIN_FONT_SCALE, MIN_FONT_SCALE, MAX_FONT_SCALE);
 
@@ -485,6 +497,8 @@ Page(withPageShare({
     const username = String(currentUser && currentUser.username || '').trim();
     const normalizedScale = clamp(Number(nextScale) || MIN_FONT_SCALE, MIN_FONT_SCALE, MAX_FONT_SCALE);
 
+    this.syncLocalFontScale(normalizedScale);
+
     if (!username || normalizedScale === this.lastSavedFontScale) {
       return;
     }
@@ -512,6 +526,7 @@ Page(withPageShare({
     }
 
     this.applyFontScale(nextScale);
+    this.syncLocalFontScale(nextScale);
     this.scheduleFontScaleSave(nextScale);
   },
 
@@ -522,6 +537,7 @@ Page(withPageShare({
     }
 
     this.applyFontScale(nextScale);
+    this.syncLocalFontScale(nextScale);
     this.scheduleFontScaleSave(nextScale);
   }
 }));

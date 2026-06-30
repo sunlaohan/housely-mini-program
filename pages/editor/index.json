@@ -1,4 +1,6 @@
 {
+  "enableShareAppMessage": true,
+  "enableShareTimeline": true,
   "navigationStyle": "custom",
   "usingComponents": {
     "app-button": "/components/app-button/index"

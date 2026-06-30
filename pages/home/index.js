@@ -1,6 +1,59 @@
 const { ensureAuth, formatDate } = require('../../utils/page');
 const { getDocuments, deleteDocument, deleteDocuments } = require('../../utils/docs');
 const { withPageShare } = require('../../utils/share');
+const { getCurrentUser } = require('../../utils/account');
+
+const TIMELINE_ENTRY = 'timeline';
+const TIMELINE_SCENE = 1154;
+const SHARE_HIGHLIGHTS = [
+  {
+    key: 'capture',
+    icon: '/assets/auth/photograph.svg',
+    title: '拍照入库',
+    description: '说明书、票据、户号纸条，拍一下就能收进小程序。'
+  },
+  {
+    key: 'ocr',
+    icon: '/assets/auth/description.svg',
+    title: '自动成稿',
+    description: 'OCR 会帮你整理标题、摘要和正文草稿，省下手动录入。'
+  },
+  {
+    key: 'search',
+    icon: '/assets/auth/search.svg',
+    title: '随手可搜',
+    description: '标题和正文都支持搜索，找资料不用翻抽屉。'
+  },
+  {
+    key: 'family',
+    icon: '/assets/auth/smile.svg',
+    title: '全家省心',
+    description: '常用家庭资料集中存放，搬家、报修、缴费都更顺手。'
+  }
+];
+const SHARE_SCENES = [
+  '空调说明书找不到时，搜一下就能看',
+  '水电燃气户号要填时，不用再翻票据',
+  '老人不会用家电时，直接把文档发给家里人看'
+];
+
+function getEnterScene() {
+  if (typeof wx.getEnterOptionsSync !== 'function') {
+    return 0;
+  }
+
+  try {
+    const options = wx.getEnterOptionsSync();
+    return Number(options && options.scene) || 0;
+  } catch (error) {
+    return 0;
+  }
+}
+
+function isTimelineShareEntry(options = {}) {
+  return String(options && options.entry || '').trim() === TIMELINE_ENTRY
+    || getEnterScene() === TIMELINE_SCENE;
+}
 
 function escapeHtml(text = '') {
   return String(text || '')
@@ -153,12 +206,20 @@ function scoreDocMatch(doc, keyword = '') {
 Page(withPageShare({
   data: {
     currentUser: null,
+    shareEntry: '',
+    shareLandingVisible: false,
+    shareHighlights: SHARE_HIGHLIGHTS,
+    shareScenes: SHARE_SCENES,
     allDocs: [],
     docs: [],
+    isLoadingDocs: false,
     searchKeyword: '',
     searchLoading: false,
     batchMode: false,
     selectedIds: [],
+    selectedVisibleCount: 0,
+    allVisibleSelected: false,
+    deleteSelectedText: '删除选中项',
     swipeId: '',
     touchStartX: 0,
     touchCurrentX: 0,
@@ -166,19 +227,69 @@ Page(withPageShare({
     swipeMaxOffset: 114
   },
 
+  onLoad(options) {
+    this.setData({
+      shareEntry: isTimelineShareEntry(options) ? TIMELINE_ENTRY : ''
+    });
+  },
+
   onShow() {
+    const currentUser = getCurrentUser();
+    const shareLandingVisible = !currentUser && this.data.shareEntry === TIMELINE_ENTRY;
+
+    if (!currentUser) {
+      getApp().setCurrentUser(null);
+      this.setData({
+        currentUser: null,
+        shareLandingVisible,
+        allDocs: [],
+        docs: [],
+        isLoadingDocs: false,
+        searchKeyword: '',
+        searchLoading: false,
+        batchMode: false,
+        selectedIds: [],
+        selectedVisibleCount: 0,
+        allVisibleSelected: false,
+        deleteSelectedText: '删除选中项',
+        swipeId: ''
+      }, () => {
+        this.syncTabBar();
+      });
+
+      if (!shareLandingVisible) {
+        wx.reLaunch({
+          url: '/pages/auth/login/index'
+        });
+      }
+      return;
+    }
+
+    this.setData({
+      shareLandingVisible: false,
+      isLoadingDocs: !this.data.allDocs.length && !this.data.docs.length
+    });
     this.syncTabBar();
     ensureAuth(this, async (user) => {
       try {
         const docs = (await getDocuments(user)).map(this.decorateDoc);
-        const visibleDocs = this.getVisibleDocs(docs, this.data.searchKeyword);
+        const existingIds = new Set(docs.map((doc) => doc.id));
+        const selectedIds = this.data.selectedIds.filter((id) => existingIds.has(id));
+        const visibleDocs = this.getVisibleDocs(docs, this.data.searchKeyword, selectedIds);
+        const batchSelection = this.getBatchSelectionState(visibleDocs, selectedIds);
         this.setData({
           currentUser: user,
           allDocs: docs,
-          docs: visibleDocs
+          selectedIds,
+          docs: visibleDocs,
+          isLoadingDocs: false,
+          ...batchSelection
         });
         getApp().setCurrentUser(user);
       } catch (error) {
+        this.setData({
+          isLoadingDocs: false
+        });
         wx.showToast({ title: '加载文档失败', icon: 'none' });
       }
     });
@@ -193,9 +304,15 @@ Page(withPageShare({
     if (tabBar && typeof tabBar.setData === 'function') {
       tabBar.setData({
         selected: 0,
-        hidden: this.data.batchMode
+        hidden: this.data.batchMode || this.data.shareLandingVisible
       });
     }
+  },
+
+  goLogin() {
+    wx.reLaunch({
+      url: '/pages/auth/login/index'
+    });
   },
 
   decorateDoc(doc) {
@@ -216,9 +333,21 @@ Page(withPageShare({
     }));
   },
 
-  getVisibleDocs(allDocs = this.data.allDocs, keyword = this.data.searchKeyword) {
+  getBatchSelectionState(docs = this.data.docs, selectedIds = this.data.selectedIds) {
+    const selectedSet = new Set(selectedIds);
+    const visibleIds = docs.map((doc) => doc.id).filter(Boolean);
+    const selectedVisibleCount = visibleIds.filter((id) => selectedSet.has(id)).length;
+
+    return {
+      selectedVisibleCount,
+      allVisibleSelected: Boolean(visibleIds.length && selectedVisibleCount === visibleIds.length),
+      deleteSelectedText: selectedIds.length ? `删除选中项（${selectedIds.length}）` : '删除选中项'
+    };
+  },
+
+  getVisibleDocs(allDocs = this.data.allDocs, keyword = this.data.searchKeyword, selectedIds = this.data.selectedIds) {
     const normalizedKeyword = normalizeKeyword(keyword);
-    const baseDocs = this.syncDocSelection(this.data.selectedIds, allDocs);
+    const baseDocs = this.syncDocSelection(selectedIds, allDocs);
 
     if (!normalizedKeyword) {
       return baseDocs.map((doc) => ({
@@ -249,9 +378,11 @@ Page(withPageShare({
 
     const normalizedKeyword = String(keyword || '');
     if (!normalizeKeyword(normalizedKeyword)) {
+      const docs = this.getVisibleDocs(this.data.allDocs, '', this.data.selectedIds);
       this.setData({
         searchLoading: false,
-        docs: this.getVisibleDocs(this.data.allDocs, '')
+        docs,
+        ...this.getBatchSelectionState(docs, this.data.selectedIds)
       });
       return;
     }
@@ -259,10 +390,12 @@ Page(withPageShare({
     this.setData({ searchLoading: true });
 
     this.searchTimer = setTimeout(() => {
+      const docs = this.getVisibleDocs(this.data.allDocs, normalizedKeyword, this.data.selectedIds);
       this.searchTimer = null;
       this.setData({
         searchLoading: false,
-        docs: this.getVisibleDocs(this.data.allDocs, normalizedKeyword)
+        docs,
+        ...this.getBatchSelectionState(docs, this.data.selectedIds)
       });
     }, 1000);
   },
@@ -279,10 +412,12 @@ Page(withPageShare({
       this.searchTimer = null;
     }
 
+    const docs = this.getVisibleDocs(this.data.allDocs, '', this.data.selectedIds);
     this.setData({
       searchKeyword: '',
       searchLoading: false,
-      docs: this.getVisibleDocs(this.data.allDocs, '')
+      docs,
+      ...this.getBatchSelectionState(docs, this.data.selectedIds)
     });
   },
 
@@ -314,35 +449,56 @@ Page(withPageShare({
   },
 
   toggleBatch() {
+    const nextBatchMode = !this.data.batchMode;
+    const selectedIds = [];
+    const docs = this.syncDocSelection(selectedIds, this.resetSwipeOffsets());
     this.setData({
-      batchMode: !this.data.batchMode,
-      selectedIds: [],
+      batchMode: nextBatchMode,
+      selectedIds,
       swipeId: '',
-      docs: this.syncDocSelection([], this.resetSwipeOffsets())
+      docs,
+      ...this.getBatchSelectionState(docs, selectedIds)
     }, () => {
       this.syncTabBar();
     });
   },
 
   exitBatchMode() {
+    const selectedIds = [];
+    const docs = this.syncDocSelection(selectedIds, this.resetSwipeOffsets());
     this.setData({
       batchMode: false,
-      selectedIds: [],
+      selectedIds,
       swipeId: '',
-      docs: this.syncDocSelection([], this.resetSwipeOffsets())
+      docs,
+      ...this.getBatchSelectionState(docs, selectedIds)
     }, () => {
       this.syncTabBar();
     });
   },
 
   toggleSelectAll() {
-    const allIds = this.data.docs.map((doc) => doc.id);
-    const shouldSelectAll = this.data.selectedIds.length !== allIds.length;
-    const nextSelectedIds = shouldSelectAll ? allIds : [];
+    const visibleIds = this.data.docs.map((doc) => doc.id).filter(Boolean);
+    if (!visibleIds.length) {
+      return;
+    }
+
+    const selectedSet = new Set(this.data.selectedIds);
+    const allVisibleSelected = visibleIds.every((id) => selectedSet.has(id));
+
+    if (allVisibleSelected) {
+      visibleIds.forEach((id) => selectedSet.delete(id));
+    } else {
+      visibleIds.forEach((id) => selectedSet.add(id));
+    }
+
+    const nextSelectedIds = Array.from(selectedSet);
+    const docs = this.getVisibleDocs(this.data.allDocs, this.data.searchKeyword, nextSelectedIds);
 
     this.setData({
       selectedIds: nextSelectedIds,
-      docs: this.getVisibleDocs(this.data.allDocs, this.data.searchKeyword)
+      docs,
+      ...this.getBatchSelectionState(docs, nextSelectedIds)
     });
   },
 
@@ -360,9 +516,11 @@ Page(withPageShare({
     }
 
     const nextSelectedIds = Array.from(selectedSet);
+    const docs = this.getVisibleDocs(this.data.allDocs, this.data.searchKeyword, nextSelectedIds);
     this.setData({
       selectedIds: nextSelectedIds,
-      docs: this.getVisibleDocs(this.data.allDocs, this.data.searchKeyword)
+      docs,
+      ...this.getBatchSelectionState(docs, nextSelectedIds)
     });
   },
 
@@ -488,6 +646,14 @@ Page(withPageShare({
     if (this.searchTimer) {
       clearTimeout(this.searchTimer);
       this.searchTimer = null;
+    }
+  }
+}, {
+  enableTimeline: true,
+  timeline: {
+    title: '家物小记｜把家里的说明书、票据和户号都存起来',
+    query: {
+      entry: TIMELINE_ENTRY
     }
   }
 }));

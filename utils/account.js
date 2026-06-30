@@ -27,6 +27,17 @@ function sanitizeUser(user) {
   };
 }
 
+function saveCurrentUser(user) {
+  const sanitizedUser = sanitizeUser(user);
+  if (!sanitizedUser) {
+    remove(KEYS.SESSION);
+    return null;
+  }
+
+  write(KEYS.SESSION, sanitizedUser);
+  return sanitizedUser;
+}
+
 async function callAuth(action, payload = {}) {
   try {
     const result = await wx.cloud.callFunction({
@@ -51,7 +62,7 @@ async function callAuth(action, payload = {}) {
 async function loginWithUsername(username) {
   const result = await callAuth('loginOrCreate', { username });
   if (result.ok && result.user) {
-    write(KEYS.SESSION, sanitizeUser(result.user));
+    saveCurrentUser(result.user);
   }
   return result;
 }
@@ -63,7 +74,7 @@ async function updateAvatar(username, avatar) {
   });
 
   if (result.ok && result.user) {
-    write(KEYS.SESSION, sanitizeUser(result.user));
+    saveCurrentUser(result.user);
   }
   return result;
 }
@@ -75,10 +86,22 @@ async function updatePreviewFontScale(username, previewFontScale) {
   });
 
   if (result.ok && result.user) {
-    write(KEYS.SESSION, sanitizeUser(result.user));
+    saveCurrentUser(result.user);
   }
 
   return result;
+}
+
+function updateLocalPreviewFontScale(previewFontScale) {
+  const currentUser = getCurrentUser();
+  if (!currentUser) {
+    return null;
+  }
+
+  return saveCurrentUser({
+    ...currentUser,
+    previewFontScale: normalizePreviewFontScale(previewFontScale)
+  });
 }
 
 function getCurrentUser() {
@@ -119,6 +142,8 @@ module.exports = {
   loginWithUsername,
   logout,
   requireAuth,
+  saveCurrentUser,
   updateAvatar,
+  updateLocalPreviewFontScale,
   updatePreviewFontScale
 };

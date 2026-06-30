@@ -1,3 +1,5 @@
 {
+  "enableShareAppMessage": true,
+  "enableShareTimeline": true,
   "navigationStyle": "custom"
 }
