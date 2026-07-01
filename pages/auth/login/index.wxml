@@ -11,7 +11,7 @@
       <input
         class="login-input"
         type="nickname"
-        placeholder="请输入账号"
+        placeholder="请输入账号，建议设置易记内容"
         placeholder-class="login-placeholder"
         data-field="username"
         bindinput="onInput"

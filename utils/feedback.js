@@ -1,3 +1,5 @@
+const { checkDocumentContent } = require('./content-safety');
+
 function sanitizeCloudPathSegment(value, fallback = 'anonymous') {
   const normalized = String(value || '')
     .trim()
@@ -80,7 +82,14 @@ async function uploadAttachments(sources, ownerKey) {
 async function submitFeedback(user, payload) {
   const ownerKey = String(user && user.username || '').trim();
   const userId = String(user && user.id || '').trim();
+  const content = String(payload.content || '').trim();
   const attachments = await uploadAttachments(payload.attachments || [], ownerKey);
+
+  await checkDocumentContent({
+    title: '意见反馈',
+    markdown: content,
+    sourceFiles: attachments
+  });
 
   let result;
   try {
@@ -90,8 +99,7 @@ async function submitFeedback(user, payload) {
         action: 'submit',
         ownerKey,
         userId,
-        contact: String(payload.contact || '').trim(),
-        content: String(payload.content || '').trim(),
+        content,
         attachments: attachments.map((attachment) => ({
           fileName: attachment.fileName,
           type: attachment.type,

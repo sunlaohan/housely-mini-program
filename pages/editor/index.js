@@ -1,6 +1,7 @@
 const { ensureAuth } = require('../../utils/page');
 const { addDocument, getDocumentById, updateDocument } = require('../../utils/docs');
 const { chooseImageSources, createDraftFromSources, refreshDraftFromTask } = require('../../utils/scanner');
+const { checkDocumentContent } = require('../../utils/content-safety');
 const { withPageShare } = require('../../utils/share');
 
 function getNavMetrics() {
@@ -502,6 +503,13 @@ Page(withPageShare({
       this._isSaving = true;
       this.setData({ isSaving: true });
 
+      await checkDocumentContent({
+        name: name.trim(),
+        description: description.trim(),
+        markdown,
+        sourceFiles: storedSources
+      });
+
       if (mode === 'edit') {
         await updateDocument(currentUser, docId, {
           name: name.trim(),
@@ -539,6 +547,24 @@ Page(withPageShare({
         });
       }, 500);
     } catch (error) {
+      if (error && error.code === 'CONTENT_RISKY') {
+        wx.showModal({
+          title: '内容需修改',
+          content: error.message || '内容含有不合规信息，请修改后再保存',
+          showCancel: false
+        });
+        return;
+      }
+
+      if (error && error.code === 'CONTENT_CHECK_FAILED') {
+        wx.showModal({
+          title: '保存失败',
+          content: error.message || '内容安全校验失败，请稍后再试',
+          showCancel: false
+        });
+        return;
+      }
+
       wx.showToast({ title: '保存失败，请检查数据表', icon: 'none' });
     } finally {
       this._isSaving = false;

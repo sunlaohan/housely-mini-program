@@ -7,6 +7,7 @@
     "pages/editor/index",
     "pages/profile/index"
   ],
+  "lazyCodeLoading": "requiredComponents",
   "window": {
     "navigationBarTitleText": "家物小记",
     "navigationBarBackgroundColor": "#F7F9FA",

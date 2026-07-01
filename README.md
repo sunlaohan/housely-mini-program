@@ -27,6 +27,7 @@
 - 图片会先上传到微信云存储，再创建 OCR 任务
 - 支持多图识别、状态轮询、失败提示、稍后刷新结果
 - 识别完成后自动生成文档标题、摘要和 Markdown 草稿
+- 保存文档前会进行文本与图片内容安全校验，命中违规内容时提示用户修改
 - 草稿可继续编辑后保存为正式文档
 
 ### 4. 文档阅读
@@ -40,6 +41,7 @@
 
 - 支持内置头像、本地图片、微信头像三种换头像方式
 - 支持意见反馈，并上传图片 / 视频附件
+- 反馈提交前会进行文本与图片内容安全校验
 - 支持退出登录
 - 支持注销账号，并联动清理本人 `documents`、`ocr_tasks`、`feedbacks`
 
@@ -47,6 +49,7 @@
 
 - `auth` 云函数：登录建号、头像更新、注销账号
 - `ocr` 云函数：创建任务、处理任务、查询结果
+- `contentSafety` 云函数：调用微信内容安全 API 校验文本和图片
 - OCR 支持 `mock`、`official`、`http`、`auto` 四种模式
 - `auto` 模式下会优先尝试微信 OCR，失败时可回退到 HTTP OCR 服务或 mock 结果
 
@@ -72,6 +75,7 @@
 - `utils/about.js`：关于页视频 / 封面资源读取
 - `cloudfunctions/auth`：账号相关云函数
 - `cloudfunctions/ocr`：OCR 任务云函数
+- `cloudfunctions/contentSafety`：内容安全校验云函数
 - `cloudfunctions/feedback`：反馈落库与邮件发送
 - `services/mineru_worker`：可选的 HTTP OCR / MinerU 适配服务
 
@@ -83,6 +87,7 @@
 4. 在开发者工具中右键部署以下云函数，选择“上传并部署：云端安装依赖”：
    - `cloudfunctions/auth`
    - `cloudfunctions/ocr`
+   - `cloudfunctions/contentSafety`
    - `cloudfunctions/feedback`
 5. 在云开发数据库中手动创建以下集合：
    - `users`
@@ -123,6 +128,12 @@ module.exports = {
 ```
 
 修改 OCR 配置后，请重新部署 `cloudfunctions/ocr`。
+
+## 内容安全配置
+
+“添加 / 编辑”文档保存前会调用 [`cloudfunctions/contentSafety`](./cloudfunctions/contentSafety/index.js)，对标题、摘要、正文执行 `security.msgSecCheck`，并对上传图片提交 `security.mediaCheckAsync`。若检测发现风险内容，小程序只提示用户修改，不会保存到 `documents` 集合。
+
+首次启用或修改后，请在微信开发者工具中右键 `cloudfunctions/contentSafety`，选择“上传并部署：云端安装依赖”。该云函数的 [`config.json`](./cloudfunctions/contentSafety/config.json) 已声明所需的内容安全 OpenAPI 权限。
 
 ## 意见反馈邮件通知
 

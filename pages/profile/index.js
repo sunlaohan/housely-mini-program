@@ -87,7 +87,6 @@ Page(withPageShare({
     feedbackSubmitting: false,
     feedbackMaxCount: 9,
     feedbackForm: {
-      contact: '',
       content: '',
       attachments: []
     }
@@ -369,10 +368,6 @@ Page(withPageShare({
     });
   },
 
-  onFeedbackContactChange(event) {
-    this.updateFeedbackField('contact', event.detail.value);
-  },
-
   onFeedbackContentChange(event) {
     this.updateFeedbackField('content', event.detail.value);
   },
@@ -486,7 +481,6 @@ Page(withPageShare({
   resetFeedbackForm() {
     this.setData({
       feedbackForm: {
-        contact: '',
         content: '',
         attachments: []
       }
@@ -498,16 +492,7 @@ Page(withPageShare({
       return;
     }
 
-    const contact = String(this.data.feedbackForm.contact || '').trim();
     const content = String(this.data.feedbackForm.content || '').trim();
-
-    if (!contact) {
-      wx.showToast({
-        title: '请填写联系方式',
-        icon: 'none'
-      });
-      return;
-    }
 
     if (!content) {
       wx.showToast({

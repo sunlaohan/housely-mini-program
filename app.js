@@ -31,12 +31,6 @@ App({
 
     const updateManager = wx.getUpdateManager();
 
-    updateManager.onCheckForUpdate((result) => {
-      if (result.hasUpdate) {
-        console.log('new version update found');
-      }
-    });
-
     updateManager.onUpdateReady(() => {
       wx.showModal({
         title: '发现新版本',

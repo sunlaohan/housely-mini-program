@@ -1,16 +1,22 @@
-当前项目已接入 `auth` 云函数。
+当前项目已接入以下云函数：
 
-使用前请在微信开发者工具中：
+- `auth`：账号登录、头像、注销等账号能力
+- `ocr`：OCR 任务创建、处理、查询
+- `contentSafety`：调用微信内容安全 API 校验文档文本与图片
+- `feedback`：意见反馈落库与邮件发送
 
-1. 右键 `cloudfunctions/auth`
-2. 选择“上传并部署：云端安装依赖”
+使用前请在微信开发者工具中分别右键以下目录：
 
-当前 `auth` 负责：
+1. `cloudfunctions/auth`
+2. `cloudfunctions/ocr`
+3. `cloudfunctions/contentSafety`
+4. `cloudfunctions/feedback`
 
-- 注册/登录
-- 密保问题查询
-- 重置密码
-- 修改密码
-- 修改密保
-- 修改头像
-- 注销账号
+然后选择“上传并部署：云端安装依赖”。
+
+其中 `contentSafety` 已在 `config.json` 中声明：
+
+- `security.msgSecCheck`
+- `security.mediaCheckAsync`
+
+用于满足小程序发布内容前的内容安全校验要求。

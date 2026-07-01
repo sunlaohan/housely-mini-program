@@ -37,15 +37,6 @@
 
       <view class="feedback-sheet__body">
         <view class="feedback-sheet__card">
-          <form-input
-            label="您的联系方式（邮箱/手机号/QQ/微信都行）"
-            required="{{true}}"
-            placeholder="请输入"
-            value="{{feedbackForm.contact}}"
-            show-divider="{{true}}"
-            disabled="{{feedbackSubmitting}}"
-            bind:change="onFeedbackContactChange"
-          />
           <form-textarea
             label="问题描述"
             required="{{true}}"

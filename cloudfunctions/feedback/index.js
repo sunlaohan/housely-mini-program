@@ -118,7 +118,6 @@ function buildMailHtml(record, linkMap) {
       <h2 style="margin:0 0 16px;font-size:20px;">家物小记收到一条新意见反馈</h2>
       <p style="margin:0 0 8px;"><strong>提交时间：</strong>${escapeHtml(formatDateTime(record.createdAt))}</p>
       <p style="margin:0 0 8px;"><strong>用户账号：</strong>${escapeHtml(record.username || '-')}</p>
-      <p style="margin:0 0 8px;"><strong>联系方式：</strong>${escapeHtml(record.contact || '-')}</p>
       <div style="margin:16px 0;padding:16px;background:#f7f9fa;border-radius:12px;">
         <div style="margin:0 0 8px;font-weight:600;">问题描述</div>
         <div style="white-space:pre-wrap;">${escapeHtml(record.content || '')}</div>
@@ -143,7 +142,6 @@ function buildMailText(record, linkMap) {
     '家物小记收到一条新意见反馈',
     `提交时间：${formatDateTime(record.createdAt)}`,
     `用户账号：${record.username || '-'}`,
-    `联系方式：${record.contact || '-'}`,
     '',
     '问题描述：',
     record.content || '',
@@ -190,7 +188,7 @@ async function sendFeedbackMail(record) {
   const result = await transporter.sendMail({
     from: `"${config.senderName}" <${config.user}>`,
     to: record.receiverEmail || FEEDBACK_RECEIVER_EMAIL,
-    subject: `[家物小记] 新意见反馈 - ${record.username || record.contact || '匿名用户'}`,
+    subject: `[家物小记] 新意见反馈 - ${record.username || '匿名用户'}`,
     text: buildMailText(record, attachmentLinks),
     html: buildMailHtml(record, attachmentLinks)
   });
@@ -209,7 +207,6 @@ async function submitFeedback(event) {
     username: String(event.ownerKey || '').trim(),
     userId: String(event.userId || '').trim(),
     receiverEmail: FEEDBACK_RECEIVER_EMAIL,
-    contact: String(event.contact || '').trim(),
     content: String(event.content || '').trim(),
     attachments: sanitizeAttachments(event.attachments || []),
     createdAt: now,
@@ -218,10 +215,6 @@ async function submitFeedback(event) {
     mailError: '',
     mailMessageId: ''
   };
-
-  if (!record.contact) {
-    return { ok: false, message: '请填写联系方式' };
-  }
 
   if (!record.content) {
     return { ok: false, message: '请填写问题描述' };
