@@ -20,7 +20,43 @@ App({
       traceUser: true
     });
 
+    this.setupUpdateManager();
     this.globalData.currentUser = getCurrentUser();
+  },
+
+  setupUpdateManager() {
+    if (typeof wx.getUpdateManager !== 'function') {
+      return;
+    }
+
+    const updateManager = wx.getUpdateManager();
+
+    updateManager.onCheckForUpdate((result) => {
+      if (result.hasUpdate) {
+        console.log('new version update found');
+      }
+    });
+
+    updateManager.onUpdateReady(() => {
+      wx.showModal({
+        title: '发现新版本',
+        content: '新版本已经准备好，重启后即可体验最新功能。',
+        confirmText: '立即重启',
+        cancelText: '稍后',
+        success: (res) => {
+          if (res.confirm) {
+            updateManager.applyUpdate();
+          }
+        }
+      });
+    });
+
+    updateManager.onUpdateFailed(() => {
+      wx.showToast({
+        title: '新版本下载失败，请稍后再试',
+        icon: 'none'
+      });
+    });
   },
 
   setCurrentUser(user) {
