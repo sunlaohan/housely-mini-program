@@ -213,6 +213,7 @@ Page(withPageShare({
     allDocs: [],
     docs: [],
     isLoadingDocs: false,
+    contentRefreshing: false,
     searchKeyword: '',
     searchLoading: false,
     batchMode: false,
@@ -223,6 +224,7 @@ Page(withPageShare({
     swipeId: '',
     touchStartX: 0,
     touchCurrentX: 0,
+    touchMoved: false,
     swipeThreshold: 28,
     swipeMaxOffset: 114
   },
@@ -245,6 +247,7 @@ Page(withPageShare({
         allDocs: [],
         docs: [],
         isLoadingDocs: false,
+        contentRefreshing: false,
         searchKeyword: '',
         searchLoading: false,
         batchMode: false,
@@ -256,12 +259,6 @@ Page(withPageShare({
       }, () => {
         this.syncTabBar();
       });
-
-      if (!shareLandingVisible) {
-        wx.reLaunch({
-          url: '/pages/auth/login/index'
-        });
-      }
       return;
     }
 
@@ -271,28 +268,53 @@ Page(withPageShare({
     });
     this.syncTabBar();
     ensureAuth(this, async (user) => {
-      try {
-        const docs = (await getDocuments(user)).map(this.decorateDoc);
-        const existingIds = new Set(docs.map((doc) => doc.id));
-        const selectedIds = this.data.selectedIds.filter((id) => existingIds.has(id));
-        const visibleDocs = this.getVisibleDocs(docs, this.data.searchKeyword, selectedIds);
-        const batchSelection = this.getBatchSelectionState(visibleDocs, selectedIds);
-        this.setData({
-          currentUser: user,
-          allDocs: docs,
-          selectedIds,
-          docs: visibleDocs,
-          isLoadingDocs: false,
-          ...batchSelection
-        });
-        getApp().setCurrentUser(user);
-      } catch (error) {
-        this.setData({
-          isLoadingDocs: false
-        });
-        wx.showToast({ title: '加载文档失败', icon: 'none' });
-      }
+      await this.loadDocuments(user);
     });
+  },
+
+  async onListRefresh() {
+    const currentUser = getCurrentUser();
+    if (!currentUser || this.data.shareLandingVisible) {
+      this.setData({ contentRefreshing: false });
+      return;
+    }
+
+    this.setData({ contentRefreshing: true });
+
+    try {
+      await this.loadDocuments(currentUser, { silent: true });
+    } finally {
+      this.setData({ contentRefreshing: false });
+    }
+  },
+
+  async loadDocuments(user, options = {}) {
+    const { silent = false } = options;
+
+    try {
+      const docs = (await getDocuments(user)).map(this.decorateDoc);
+      const existingIds = new Set(docs.map((doc) => doc.id));
+      const selectedIds = this.data.selectedIds.filter((id) => existingIds.has(id));
+      const visibleDocs = this.getVisibleDocs(docs, this.data.searchKeyword, selectedIds);
+      const batchSelection = this.getBatchSelectionState(visibleDocs, selectedIds);
+      this.setData({
+        currentUser: user,
+        allDocs: docs,
+        selectedIds,
+        docs: visibleDocs,
+        swipeId: '',
+        isLoadingDocs: false,
+        contentRefreshing: false,
+        ...batchSelection
+      });
+      getApp().setCurrentUser(user);
+    } catch (error) {
+      this.setData({
+        isLoadingDocs: false,
+        contentRefreshing: false
+      });
+      wx.showToast({ title: silent ? '刷新失败' : '加载文档失败', icon: 'none' });
+    }
   },
 
   syncTabBar() {
@@ -432,6 +454,10 @@ Page(withPageShare({
   },
 
   openDoc(event) {
+    if (this.data.touchMoved) {
+      return;
+    }
+
     if (this.data.batchMode) {
       this.toggleDocSelection(event);
       return;
@@ -538,6 +564,11 @@ Page(withPageShare({
           return;
         }
 
+        wx.showLoading({
+          title: '删除中...',
+          mask: true
+        });
+
         deleteDocuments(this.data.currentUser, this.data.selectedIds)
           .then(() => {
             this.exitBatchMode();
@@ -545,6 +576,9 @@ Page(withPageShare({
           })
           .catch(() => {
             wx.showToast({ title: '批量删除失败', icon: 'none' });
+          })
+          .finally(() => {
+            wx.hideLoading();
           });
       }
     });
@@ -561,6 +595,7 @@ Page(withPageShare({
     this.setData({
       touchStartX: event.changedTouches[0].clientX,
       touchCurrentX: event.changedTouches[0].clientX,
+      touchMoved: false,
       swipeId: hasOpenItem ? '' : this.data.swipeId,
       docs: hasOpenItem ? this.resetSwipeOffsets() : this.data.docs
     });
@@ -573,12 +608,14 @@ Page(withPageShare({
 
     const { id } = event.currentTarget.dataset;
     const moveX = event.changedTouches[0].clientX - this.data.touchStartX;
+    const moved = Math.abs(moveX) > 6;
     const currentOffset = moveX < 0
       ? Math.min(this.data.swipeMaxOffset, Math.abs(moveX))
       : 0;
 
     this.setData({
       touchCurrentX: event.changedTouches[0].clientX,
+      touchMoved: moved || this.data.touchMoved,
       docs: this.data.docs.map((doc) => ({
         ...doc,
         swipeOffset: doc.id === id ? currentOffset : 0
@@ -602,9 +639,24 @@ Page(withPageShare({
         swipeOffset: doc.id === id && shouldOpen ? this.data.swipeMaxOffset : 0
       }))
     });
+
+    if (this.touchGuardTimer) {
+      clearTimeout(this.touchGuardTimer);
+    }
+
+    this.touchGuardTimer = setTimeout(() => {
+      this.setData({
+        touchMoved: false
+      });
+      this.touchGuardTimer = null;
+    }, 180);
   },
 
   closeSwipe() {
+    if (this.data.touchMoved) {
+      return;
+    }
+
     if (this.data.swipeId) {
       this.setData({
         swipeId: '',
@@ -624,10 +676,18 @@ Page(withPageShare({
           return;
         }
 
+        wx.showLoading({
+          title: '删除中...',
+          mask: true
+        });
+
         deleteDocument(this.data.currentUser, id)
           .then(() => this.onShow())
           .catch(() => {
             wx.showToast({ title: '删除失败', icon: 'none' });
+          })
+          .finally(() => {
+            wx.hideLoading();
           });
       }
     });
@@ -646,6 +706,11 @@ Page(withPageShare({
     if (this.searchTimer) {
       clearTimeout(this.searchTimer);
       this.searchTimer = null;
+    }
+
+    if (this.touchGuardTimer) {
+      clearTimeout(this.touchGuardTimer);
+      this.touchGuardTimer = null;
     }
   }
 }, {

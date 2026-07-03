@@ -1,6 +1,7 @@
 const KEYS = {
   USERS: 'housely_users',
   SESSION: 'housely_session',
+  GUEST_ID: 'housely_guest_id',
   DOCS_PREFIX: 'housely_docs_'
 };
 

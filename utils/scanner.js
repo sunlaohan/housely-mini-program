@@ -1,5 +1,10 @@
 const ocrConfig = require('../config/ocr');
 const { getCurrentUser } = require('./account');
+const { KEYS, read, write } = require('./storage');
+
+const MAX_OCR_IMAGE_SIZE_MB = 8;
+const MAX_OCR_IMAGE_SIZE = MAX_OCR_IMAGE_SIZE_MB * 1024 * 1024;
+const MAX_RECOGNIZED_TITLE_LENGTH = 20;
 
 function sleep(duration) {
   return new Promise((resolve) => {
@@ -17,7 +22,8 @@ function buildTaskError(message, code, extra = {}) {
 function isCloudFunctionTimeout(error) {
   const errMsg = error && error.errMsg ? String(error.errMsg) : '';
   const message = error && error.message ? String(error.message) : '';
-  return errMsg.includes('timeout') || message.includes('timeout');
+  const text = `${errMsg} ${message}`.toLowerCase();
+  return text.includes('timeout') || text.includes('timed out') || text.includes('functions_time_limit_exceeded');
 }
 
 function sanitizeCloudPathSegment(value, fallback = 'anonymous') {
@@ -35,6 +41,21 @@ function makeCloudPath(ownerKey, fileName, index = 0) {
   const safeOwnerKey = sanitizeCloudPathSegment(ownerKey, 'anonymous');
   const suffix = index > 0 ? `-${index}` : '';
   return `ocr/${safeOwnerKey}/${Date.now()}${suffix}-${safeName}`;
+}
+
+function createGuestId() {
+  return `guest-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function getGuestOwnerKey() {
+  const existingGuestId = String(read(KEYS.GUEST_ID, '') || '').trim();
+  if (existingGuestId) {
+    return existingGuestId;
+  }
+
+  const nextGuestId = createGuestId();
+  write(KEYS.GUEST_ID, nextGuestId);
+  return nextGuestId;
 }
 
 function buildDescription(summary, sourceCount) {
@@ -123,10 +144,38 @@ function buildSourceDisplayName(sourceFiles) {
   return `${firstName.replace(/\.[^.]+$/, '')} 等${sourceFiles.length}张图片`;
 }
 
+function normalizeRecognizedTitleLine(line) {
+  return String(line || '')
+    .replace(/^#{1,6}\s*/, '')
+    .replace(/^[-*]\s*/, '')
+    .replace(/^文件标题[：:]\s*/, '')
+    .trim();
+}
+
+function getFirstRecognizedLine(markdown) {
+  const lines = String(markdown || '').split(/\r?\n/);
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const title = normalizeRecognizedTitleLine(lines[index]);
+    if (!title || /^图片\d+[：:]/.test(title)) {
+      continue;
+    }
+
+    return title.slice(0, MAX_RECOGNIZED_TITLE_LENGTH);
+  }
+
+  return '';
+}
+
+function buildDraftName(markdown, fallbackName) {
+  return getFirstRecognizedLine(markdown) || fallbackName || '未命名扫描件';
+}
+
 function toDraftFromTask(task, sources = []) {
   const sourceFiles = normalizeSourceList(sources, task);
   const sourceName = task.sourceName || buildSourceDisplayName(sourceFiles);
   const baseName = sourceName.replace(/\.[^.]+$/, '') || '未命名扫描件';
+  const markdown = task.markdown || '';
 
   return {
     sourceFiles,
@@ -136,9 +185,9 @@ function toDraftFromTask(task, sources = []) {
     ocrTaskId: task.id,
     ocrStatus: task.status,
     ocrProvider: task.provider || ocrConfig.provider,
-    name: baseName,
+    name: buildDraftName(markdown, baseName),
     description: buildDescription(task.summary, sourceFiles.length || 1),
-    markdown: task.markdown || ''
+    markdown
   };
 }
 
@@ -205,6 +254,10 @@ function toDraftFromTaskEntries(taskEntries, sources = []) {
   const sourceName = buildSourceDisplayName(sourceFiles);
   const baseName = sourceName.replace(/\.[^.]+$/, '') || '未命名扫描件';
   const latestTask = taskEntries[taskEntries.length - 1] && taskEntries[taskEntries.length - 1].task;
+  const markdown = buildCombinedMarkdown(taskEntries);
+  const firstMarkdown = (Array.isArray(taskEntries) ? taskEntries : [])
+    .map((entry) => entry && entry.task && entry.task.markdown)
+    .find((item) => getFirstRecognizedLine(item)) || markdown;
 
   return {
     sourceFiles,
@@ -214,9 +267,9 @@ function toDraftFromTaskEntries(taskEntries, sources = []) {
     ocrTaskId: latestTask && latestTask.id ? latestTask.id : '',
     ocrStatus: latestTask && latestTask.status ? latestTask.status : 'success',
     ocrProvider: latestTask && latestTask.provider ? latestTask.provider : ocrConfig.provider,
-    name: baseName,
+    name: buildDraftName(firstMarkdown, baseName),
     description: buildDescription(`已识别${sourceFiles.length}张图片`, sourceFiles.length || 1),
-    markdown: buildCombinedMarkdown(taskEntries)
+    markdown
   };
 }
 
@@ -240,6 +293,21 @@ function chooseImageSources(limit = 6) {
       sourceType: ['album', 'camera'],
       success: (res) => {
         const tempFiles = Array.isArray(res.tempFiles) ? res.tempFiles : [];
+        const oversizedFile = tempFiles.find((file) => Number(file && file.size || 0) > MAX_OCR_IMAGE_SIZE);
+
+        if (oversizedFile) {
+          reject(buildTaskError(
+            `单张图片不能超过 ${MAX_OCR_IMAGE_SIZE_MB}MB，请压缩后再上传`,
+            'OCR_IMAGE_TOO_LARGE',
+            {
+              maxSize: MAX_OCR_IMAGE_SIZE,
+              maxSizeMB: MAX_OCR_IMAGE_SIZE_MB,
+              fileSize: Number(oversizedFile.size || 0)
+            }
+          ));
+          return;
+        }
+
         resolve(tempFiles.map((file, index) => normalizeSourceItem({
           fileName: buildImageSourceName(file.tempFilePath, index),
           tempFilePath: file.tempFilePath,
@@ -256,10 +324,12 @@ function chooseImageSources(limit = 6) {
 function getTaskOwner(user) {
   const sessionUser = getCurrentUser() || {};
   const targetUser = user && (user.username || user.id || user._id) ? user : sessionUser;
+  const ownerKey = String((targetUser && targetUser.username) || '').trim();
+  const legacyUserId = String((targetUser && (targetUser.id || targetUser._id)) || '').trim();
 
   return {
-    ownerKey: String((targetUser && targetUser.username) || '').trim(),
-    legacyUserId: String((targetUser && (targetUser.id || targetUser._id)) || '').trim()
+    ownerKey: ownerKey || legacyUserId || getGuestOwnerKey(),
+    legacyUserId
   };
 }
 
@@ -403,9 +473,6 @@ async function pollTaskResult(taskId, currentUser, options = {}) {
 
 async function createDraftFromSources(currentUser, sources, options = {}) {
   const { ownerKey, legacyUserId } = getTaskOwner(currentUser);
-  if (!ownerKey && !legacyUserId) {
-    throw buildTaskError('未获取到当前登录用户', 'AUTH_REQUIRED');
-  }
 
   const sourceFiles = normalizeSourceList(sources);
   if (!sourceFiles.length) {
@@ -451,7 +518,10 @@ async function createDraftFromSources(currentUser, sources, options = {}) {
     const processingTask = await triggerTaskProcessing(created.task.id, currentUser, { onProgress });
     const task = processingTask && processingTask.status === 'success'
       ? processingTask
-      : await pollTaskResult(created.task.id, currentUser, { onProgress });
+      : await pollTaskResult(created.task.id, currentUser, {
+        onProgress,
+        maxAttempts: Math.max(ocrConfig.maxPollAttempts || 1, 12)
+      });
 
     return toDraftFromTask(task, uploadedSources);
   }
@@ -479,7 +549,10 @@ async function createDraftFromSources(currentUser, sources, options = {}) {
     const processingTask = await triggerTaskProcessing(created.task.id, currentUser, { onProgress: itemProgress });
     const task = processingTask && processingTask.status === 'success'
       ? processingTask
-      : await pollTaskResult(created.task.id, currentUser, { onProgress: itemProgress });
+      : await pollTaskResult(created.task.id, currentUser, {
+        onProgress: itemProgress,
+        maxAttempts: Math.max(ocrConfig.maxPollAttempts || 1, 12)
+      });
 
     taskEntries.push({
       source,
@@ -490,18 +563,7 @@ async function createDraftFromSources(currentUser, sources, options = {}) {
   return toDraftFromTaskEntries(taskEntries, uploadedSources);
 }
 
-async function refreshDraftFromTask(currentUser, taskId, options = {}) {
-  if (!currentUser || !currentUser.username || !taskId) {
-    throw buildTaskError('缺少 OCR 任务信息', 'OCR_TASK_INVALID');
-  }
-
-  const { onProgress, sources = [] } = options;
-  const task = await pollTaskResult(taskId, currentUser, { onProgress });
-  return toDraftFromTask(task, sources);
-}
-
 module.exports = {
   chooseImageSources,
-  createDraftFromSources,
-  refreshDraftFromTask
+  createDraftFromSources
 };

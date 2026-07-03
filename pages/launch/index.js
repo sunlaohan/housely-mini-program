@@ -7,14 +7,10 @@ Page(withPageShare({
 
     if (user) {
       getApp().setCurrentUser(user);
-      wx.switchTab({
-        url: '/pages/home/index'
-      });
-      return;
     }
 
-    wx.redirectTo({
-      url: '/pages/auth/login/index'
+    wx.switchTab({
+      url: '/pages/home/index'
     });
   }
 }));

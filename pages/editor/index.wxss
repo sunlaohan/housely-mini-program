@@ -1,13 +1,14 @@
 .editor-page {
   min-height: 100vh;
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
   background: #f1f4f6;
 }
 
 .editor-navbar {
-  flex-shrink: 0;
+  position: fixed;
+  z-index: 20;
+  top: 0;
+  left: 0;
+  right: 0;
   background: #f1f4f6;
 }
 
@@ -49,15 +50,17 @@
   text-overflow: ellipsis;
 }
 
-.editor-scroll {
-  flex: 1;
-  min-height: 0;
+.editor-body {
+  padding-left: 32rpx;
+  padding-right: 32rpx;
+  padding-bottom: 48rpx;
+  box-sizing: border-box;
 }
 
-.editor-body {
-  padding: 24rpx 32rpx 16rpx;
-  padding-bottom: 32rpx;
-  box-sizing: border-box;
+.editor-body::before {
+  content: '';
+  display: block;
+  height: 24rpx;
 }
 
 .editor-body > view + view {
@@ -163,9 +166,9 @@
   gap: 16rpx;
 }
 
-.editor-field-card__input,
-.editor-field-card__textarea {
+.editor-field-card__input {
   width: 100%;
+  height: 44rpx;
   border: none;
   padding: 0;
   background: transparent;
@@ -175,17 +178,19 @@
   box-sizing: border-box;
 }
 
-.editor-field-card__input {
-  height: 44rpx;
-}
-
 .editor-field-card__textarea {
   display: block;
-  min-height: 360rpx;
-  height: auto;
-  overflow: visible;
+  width: 100%;
+  height: 520rpx;
+  padding: 0;
+  overflow: auto;
+  color: #1b2129;
+  font-size: 28rpx;
+  line-height: 44rpx;
   white-space: pre-wrap;
   word-break: break-all;
+  caret-color: #1b2129;
+  box-sizing: border-box;
 }
 
 .editor-field-card__placeholder {
@@ -193,12 +198,25 @@
 }
 
 .editor-field-card--textarea {
-  min-height: 360rpx;
+  min-height: 628rpx;
+}
+
+.editor-keyboard-spacer {
+  height: 240rpx;
 }
 
 .editor-footer {
-  flex-shrink: 0;
+  position: fixed;
+  z-index: 20;
+  left: 0;
+  right: 0;
+  bottom: 0;
   padding: 16rpx 32rpx 64rpx;
   box-sizing: border-box;
   background: #f1f4f6;
+}
+
+.editor-footer--hidden {
+  opacity: 0;
+  pointer-events: none;
 }

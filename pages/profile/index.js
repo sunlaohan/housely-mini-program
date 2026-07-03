@@ -1,5 +1,4 @@
-const { ensureAuth } = require('../../utils/page');
-const { logout, updateAvatar, deleteAccount } = require('../../utils/account');
+const { logout, updateAvatar, deleteAccount, getCurrentUser } = require('../../utils/account');
 const { normalizeAttachment, submitFeedback } = require('../../utils/feedback');
 const { getAboutBannerMedia } = require('../../utils/about');
 const { withPageShare } = require('../../utils/share');
@@ -65,6 +64,7 @@ function normalizeFeedbackErrorMessage(error) {
 Page(withPageShare({
   data: {
     currentUser: null,
+    guestName: '游客用户',
     statusBarHeight: 20,
     navBarHeight: 44,
     capsuleSafeWidth: 88,
@@ -98,8 +98,10 @@ Page(withPageShare({
 
   onShow() {
     this.syncTabBar();
-    ensureAuth(this, (user) => {
-      getApp().setCurrentUser(user);
+    const user = getCurrentUser();
+    getApp().setCurrentUser(user);
+    this.setData({
+      currentUser: user
     });
   },
 
@@ -115,10 +117,24 @@ Page(withPageShare({
   },
 
   pickAvatar() {
+    if (!this.data.currentUser) {
+      return;
+    }
+
     this.openAvatarPanel();
   },
 
+  goLogin() {
+    wx.navigateTo({
+      url: '/pages/auth/login/index'
+    });
+  },
+
   openAvatarPanel() {
+    if (!this.data.currentUser) {
+      return;
+    }
+
     const currentAvatar = String(this.data.currentUser && this.data.currentUser.avatar || '').trim();
     const matchedBuiltin = BUILTIN_AVATARS.find((item) => item.src === currentAvatar);
     const nextSelectionKey = matchedBuiltin
@@ -347,6 +363,11 @@ Page(withPageShare({
   noop() {},
 
   showFeedback() {
+    if (!this.data.currentUser) {
+      this.goLogin();
+      return;
+    }
+
     this.setData({
       feedbackVisible: true
     });
@@ -547,7 +568,7 @@ Page(withPageShare({
     logout();
     getApp().setCurrentUser(null);
     wx.reLaunch({
-      url: '/pages/auth/login/index'
+      url: '/pages/home/index'
     });
   },
 
@@ -565,7 +586,7 @@ Page(withPageShare({
           await deleteAccount(this.data.currentUser);
           getApp().setCurrentUser(null);
           wx.reLaunch({
-            url: '/pages/auth/login/index'
+            url: '/pages/home/index'
           });
         } catch (error) {
           wx.showToast({ title: '注销失败', icon: 'none' });

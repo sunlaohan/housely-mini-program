@@ -1,6 +1,7 @@
 const { ensureAuth } = require('../../utils/page');
+const { getCurrentUser } = require('../../utils/account');
 const { addDocument, getDocumentById, updateDocument } = require('../../utils/docs');
-const { chooseImageSources, createDraftFromSources, refreshDraftFromTask } = require('../../utils/scanner');
+const { chooseImageSources, createDraftFromSources } = require('../../utils/scanner');
 const { checkDocumentContent } = require('../../utils/content-safety');
 const { withPageShare } = require('../../utils/share');
 
@@ -13,6 +14,7 @@ function getNavMetrics() {
     return {
       statusBarHeight,
       navBarHeight: 44,
+      navSafeHeight: statusBarHeight + 44,
       capsuleSafeWidth: 88
     };
   }
@@ -23,6 +25,7 @@ function getNavMetrics() {
   return {
     statusBarHeight,
     navBarHeight,
+    navSafeHeight: statusBarHeight + navBarHeight,
     capsuleSafeWidth: windowWidth - menuRect.left + 8
   };
 }
@@ -76,12 +79,26 @@ function toStoredSources(sourceFiles) {
   })).filter((source) => source.fileId);
 }
 
+function hasPendingLocalSources(sourceFiles) {
+  return sourceFiles.some((source) => source.tempFilePath && !source.fileId);
+}
+
+function getOcrFallbackMessage(error) {
+  const text = String(error && (error.errMsg || error.message) || '');
+  if (text.includes('FUNCTIONS_TIME_LIMIT_EXCEEDED') || text.includes('timed out') || text.includes('timeout')) {
+    return '识别时间较长，请稍后重试';
+  }
+
+  return '识别失败，请稍后重试';
+}
+
 Page(withPageShare({
   data: {
     currentUser: null,
     pageTitle: '添加',
     statusBarHeight: 20,
     navBarHeight: 44,
+    navSafeHeight: 64,
     capsuleSafeWidth: 88,
     maxSourceCount: 6,
     docId: '',
@@ -96,13 +113,23 @@ Page(withPageShare({
     name: '',
     description: '',
     markdown: '',
+    markdownFocused: false,
+    editorBodyBottomPadding: 120,
+    editorKeyboardSpacerHeight: 120,
     mode: 'create',
     isScanning: false,
     isSaving: false
   },
 
   onShow() {
-    ensureAuth(this);
+    const currentUser = getCurrentUser();
+    this.setData({
+      currentUser
+    });
+
+    if (this.data.mode === 'edit') {
+      ensureAuth(this);
+    }
   },
 
   onLoad(options) {
@@ -111,11 +138,15 @@ Page(withPageShare({
       this.setData({ pageTitle: '编辑' });
     }
 
-    ensureAuth(this, async (user) => {
-      if (!options.id) {
-        return;
-      }
+    if (!options.id) {
+      const currentUser = getCurrentUser();
+      this.setData({
+        currentUser
+      });
+      return;
+    }
 
+    ensureAuth(this, async (user) => {
       try {
         const doc = await getDocumentById(user, options.id);
         if (!doc) {
@@ -191,9 +222,100 @@ Page(withPageShare({
 
   onInput(event) {
     const { field } = event.currentTarget.dataset;
+    const detail = event.detail || {};
+    const value = typeof detail === 'object' && detail !== null && Object.prototype.hasOwnProperty.call(detail, 'value')
+      ? detail.value
+      : detail;
+
+    if (!field) {
+      return;
+    }
+
     this.setData({
-      [field]: event.detail.value
+      [field]: value
     });
+  },
+
+  onMarkdownFocus(event) {
+    const keyboardHeight = Number(event.detail && event.detail.height) || 0;
+    this.applyMarkdownKeyboardHeight(keyboardHeight);
+  },
+
+  onMarkdownBlur() {
+    this.restoreEditorFooter();
+  },
+
+  onMarkdownKeyboardHeightChange(event) {
+    const keyboardHeight = Number(event.detail && event.detail.height) || 0;
+    if (keyboardHeight <= 0) {
+      this.restoreEditorFooter();
+      return;
+    }
+
+    this.applyMarkdownKeyboardHeight(keyboardHeight);
+  },
+
+  restoreEditorFooter() {
+    if (this.markdownScrollTimer) {
+      clearTimeout(this.markdownScrollTimer);
+      this.markdownScrollTimer = null;
+    }
+
+    this.setData({
+      markdownFocused: false,
+      editorBodyBottomPadding: 120,
+      editorKeyboardSpacerHeight: 120
+    });
+  },
+
+  applyMarkdownKeyboardHeight(keyboardHeight = 0) {
+    const safeHeight = Math.max(0, keyboardHeight);
+    const bottomSpace = safeHeight ? safeHeight + 120 : 420;
+
+    this.setData({
+      markdownFocused: true,
+      editorBodyBottomPadding: bottomSpace,
+      editorKeyboardSpacerHeight: bottomSpace
+    }, () => {
+      this.scrollMarkdownIntoView(safeHeight);
+    });
+  },
+
+  scrollMarkdownIntoView(keyboardHeight = 0) {
+    if (this.markdownScrollTimer) {
+      clearTimeout(this.markdownScrollTimer);
+    }
+
+    this.markdownScrollTimer = setTimeout(() => {
+      const systemInfo = wx.getSystemInfoSync();
+      const visibleBottom = (systemInfo.windowHeight || 0) - keyboardHeight - 24;
+      const query = wx.createSelectorQuery();
+
+      query.select('.editor-field-card--textarea').boundingClientRect();
+      query.selectViewport().scrollOffset();
+      query.exec((result) => {
+        const rect = result && result[0];
+        const viewport = result && result[1];
+
+        if (!rect || !viewport || !visibleBottom) {
+          return;
+        }
+
+        const minTop = this.data.navSafeHeight + 12;
+        let nextScrollTop = viewport.scrollTop;
+
+        if (rect.bottom > visibleBottom) {
+          nextScrollTop += rect.bottom - visibleBottom + 24;
+        } else if (rect.top < minTop) {
+          nextScrollTop -= minTop - rect.top;
+        }
+
+        wx.pageScrollTo({
+          scrollTop: Math.max(0, nextScrollTop),
+          duration: 180
+        });
+      });
+    }, 180);
   },
 
   updateOcrProgress(progress) {
@@ -203,10 +325,6 @@ Page(withPageShare({
 
     if (['uploading', 'created', 'processing', 'polling'].includes(progress.stage)) {
       nextData.isScanning = true;
-    }
-
-    if (progress.message) {
-      nextData.ocrMessage = progress.message;
     }
 
     if (progress.task) {
@@ -252,6 +370,11 @@ Page(withPageShare({
         markdown: ''
       });
     } catch (error) {
+      if (error && error.code === 'OCR_IMAGE_TOO_LARGE') {
+        wx.showToast({ title: error.message || '图片过大，请压缩后再上传', icon: 'none' });
+        return;
+      }
+
       if (error && error.errMsg && !error.errMsg.includes('cancel')) {
         wx.showToast({ title: '选择图片失败', icon: 'none' });
       }
@@ -271,10 +394,15 @@ Page(withPageShare({
     const primarySource = getPrimarySource(this.data.sourceFiles);
 
     try {
+      wx.showLoading({
+        title: '识别中...',
+        mask: true
+      });
+
       this.setData({
         isScanning: true,
         ocrStatus: 'preparing',
-        ocrMessage: '正在准备识别内容',
+        ocrMessage: '',
         sourceName: buildSourceDisplayName(this.data.sourceFiles),
         sourceType: primarySource ? primarySource.type : 'image',
         sourceFileId: primarySource ? primarySource.fileId : '',
@@ -310,9 +438,9 @@ Page(withPageShare({
         this.setData({
           ocrTaskId: error.taskId || this.data.ocrTaskId,
           ocrStatus: 'pending',
-          ocrMessage: '识别仍在处理中，可稍后点击“查询识别结果”继续获取'
+          ocrMessage: ''
         });
-        wx.showToast({ title: '识别中，请稍后刷新', icon: 'none' });
+        wx.showToast({ title: '识别时间较长，请稍后重试', icon: 'none' });
         return;
       }
 
@@ -353,67 +481,13 @@ Page(withPageShare({
       }
 
       if (error && error.errMsg && !error.errMsg.includes('cancel')) {
-        wx.showToast({ title: error.errMsg || '识别失败，请稍后重试', icon: 'none' });
+        wx.showToast({ title: getOcrFallbackMessage(error), icon: 'none' });
         return;
       }
 
-      wx.showToast({ title: (error && error.message) || '识别失败，请稍后重试', icon: 'none' });
+      wx.showToast({ title: getOcrFallbackMessage(error), icon: 'none' });
     } finally {
-      this.setData({
-        isScanning: false
-      });
-    }
-  },
-
-  async refreshOcrResult() {
-    if (!this.data.ocrTaskId || this.data.isScanning) {
-      return;
-    }
-
-    try {
-      this.setData({
-        isScanning: true,
-        ocrMessage: '正在查询 OCR 结果',
-        ocrStatus: this.data.ocrStatus || 'pending'
-      });
-
-      const draft = await refreshDraftFromTask(this.data.currentUser, this.data.ocrTaskId, {
-        sources: this.data.sourceFiles,
-        onProgress: (progress) => this.updateOcrProgress(progress)
-      });
-      const sourceFiles = await this.hydrateSourceFiles(draft.sourceFiles || this.data.sourceFiles);
-
-      this.setData({
-        sourceFiles,
-        sourceName: draft.sourceName,
-        sourceType: draft.sourceType,
-        sourceFileId: draft.sourceFileId || '',
-        ocrTaskId: draft.ocrTaskId || '',
-        ocrProvider: draft.ocrProvider || '',
-        ocrStatus: draft.ocrStatus || 'success',
-        ocrMessage: 'OCR 识别完成，已回填最新识别内容',
-        name: this.data.name || draft.name,
-        description: draft.description,
-        markdown: draft.markdown
-      });
-      wx.showToast({ title: '已同步识别结果', icon: 'success' });
-    } catch (error) {
-      if (error && error.code === 'OCR_TASK_TIMEOUT') {
-        this.setData({
-          ocrStatus: 'pending',
-          ocrMessage: '识别仍在处理中，请稍后再试'
-        });
-        wx.showToast({ title: '结果未完成', icon: 'none' });
-      } else if (error && error.code === 'OCR_TASK_FAILED') {
-        this.setData({
-          ocrStatus: 'failed',
-          ocrMessage: error.message || 'OCR 识别失败'
-        });
-        wx.showToast({ title: error.message || 'OCR 识别失败', icon: 'none' });
-      } else {
-        wx.showToast({ title: '查询识别结果失败', icon: 'none' });
-      }
-    } finally {
+      wx.hideLoading();
       this.setData({
         isScanning: false
       });
@@ -491,8 +565,23 @@ Page(withPageShare({
       return;
     }
 
+    if (!currentUser) {
+      wx.showToast({ title: '请先登录后保存', icon: 'none' });
+      setTimeout(() => {
+        wx.switchTab({
+          url: '/pages/profile/index'
+        });
+      }, 500);
+      return;
+    }
+
     if (!name || !markdown) {
       wx.showToast({ title: '请先生成并完善识别内容', icon: 'none' });
+      return;
+    }
+
+    if (hasPendingLocalSources(sourceFiles)) {
+      wx.showToast({ title: '请先识别新图片后再保存', icon: 'none' });
       return;
     }
 
@@ -556,19 +645,17 @@ Page(withPageShare({
         return;
       }
 
-      if (error && error.code === 'CONTENT_CHECK_FAILED') {
-        wx.showModal({
-          title: '保存失败',
-          content: error.message || '内容安全校验失败，请稍后再试',
-          showCancel: false
-        });
-        return;
-      }
-
       wx.showToast({ title: '保存失败，请检查数据表', icon: 'none' });
     } finally {
       this._isSaving = false;
       this.setData({ isSaving: false });
+    }
+  },
+
+  onUnload() {
+    if (this.markdownScrollTimer) {
+      clearTimeout(this.markdownScrollTimer);
+      this.markdownScrollTimer = null;
     }
   }
 }));

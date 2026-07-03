@@ -6,10 +6,10 @@
     </view>
   </view>
 
-  <view class="profile-body">
+  <view wx:if="{{currentUser}}" class="profile-body">
     <view class="profile-user" bindtap="pickAvatar">
-      <image class="profile-avatar" src="{{currentUser.avatar || defaultAvatar}}" mode="aspectFill"></image>
-      <view class="profile-name">{{currentUser.username}}</view>
+      <image class="profile-avatar" src="{{currentUser.avatar || defaultAvatar}}" mode="aspectFill" catchtap="pickAvatar"></image>
+      <view class="profile-name" catchtap="pickAvatar">{{currentUser.username}}</view>
     </view>
 
     <view class="profile-section">
@@ -25,7 +25,21 @@
     </view>
   </view>
 
-  <bottom-sheet visible="{{feedbackVisible}}" bind:close="closeFeedbackPanel">
+  <view wx:else class="profile-body profile-body--guest">
+    <view class="profile-user profile-user--guest">
+      <image class="profile-avatar profile-avatar--guest" src="{{defaultAvatar}}" mode="aspectFill"></image>
+      <view class="profile-name profile-name--guest">{{guestName}}</view>
+    </view>
+
+    <view class="profile-guest-section">
+      <view class="profile-login-card">
+        <text>未登录前我们无法存下你的记忆哦～\n立即登录，记下家里重要的一切吧～</text>
+      </view>
+      <app-button text="立即登录" variant="dark" width-mode="full" bind:press="goLogin" />
+    </view>
+  </view>
+
+  <bottom-sheet wx:if="{{currentUser}}" visible="{{feedbackVisible}}" bind:close="closeFeedbackPanel">
     <view class="feedback-sheet">
       <view class="feedback-sheet__header">
         <view class="feedback-sheet__close" bindtap="closeFeedbackPanel">
@@ -147,7 +161,7 @@
         </view>
 
         <view class="about-text">
-          <text>亲爱的朋友，你是否也有过这样的瞬间？\n\n家里的家电说明书、各种大大小小联系人的名片、水费/电费/燃气户号小票据等堆得抽屉满满当当，想找的时候翻来翻去，半天找不到；\n\n刚买的新电器，说明书随手放，用到时却遍寻无果，只能对着按钮束手无策；\n\n搬家整理时，一摞摞纸质文档又占地方又难打理，扔了怕有用，留着又杂乱不堪……\n\n我们懂这种无奈，不是不想整理，是琐碎的纸质文档太磨人；\n\n不是不珍惜，是没有一个简单省心的方式，把这些“有用的小事”记好、存好、查好。\n\n于是，【家物小记】来了。它不是复杂的工具，只是一个帮你“解放抽屉、省心省力”的家庭文档小管家。\n\n不用下载 APP，微信直接打开，拍照自动生成文档，想用随时搜索。彻底解决纸质文档杂乱、丢失、难查找的烦恼。</text>
+          <text>亲爱的朋友，你是否在生活中有过这样的场景：\n\n“诶？我们家的用电户号是多少来着？我记得之前办理开户时那个单子上有，但那个单子放哪儿去了？”\n\n“诶？我们家那个车位产权证号是多少来着？还有车位详细产权地址是什么？办理这个业务要咋这么多信息？我现在上哪儿找去？”\n\n“这里要填车架号，车架号不行驶证上才有么？但行驶证在家里咋弄呢？”\n\n“这热水器出问题了，报错E1是什么意思呀？之前热水器的说明书放哪儿去了？”\n\n“这一抽屉的说明书太碍事儿了，平时又不用，要用了又要找很久，找到还要翻阅很久，太麻烦了”\n\n“诶？我们家毛毛当时从宠物店抱回来时那个出生证呢？我想看下他出生日期”\n\n............\n\n现在有了【家物小记】这些问题都能轻松解决，你只需要把他们拍下来，识别一下，一个图文并茂的专属记忆就存下来了。\n你可以随时查看，还能通过搜索在记忆列表、记忆详情中快速找到你想要的内容～～</text>
         </view>
       </scroll-view>
     </view>

@@ -13,6 +13,7 @@ const DEFAULT_AVATAR = '/assets/auth/boy-1.png';
 const DEFAULT_PREVIEW_FONT_SCALE = 1;
 const MIN_PREVIEW_FONT_SCALE = 1;
 const MAX_PREVIEW_FONT_SCALE = 2.4;
+const DELETE_FILE_BATCH_SIZE = 50;
 
 function normalizePreviewFontScale(value) {
   const numericValue = Number(value);
@@ -80,6 +81,76 @@ async function queryOwnedRecords(collection, ownerKey, legacyUserId) {
   return Array.from(recordMap.values());
 }
 
+function addFileId(target, value) {
+  const fileId = String(value || '').trim();
+  if (fileId && fileId.startsWith('cloud://')) {
+    target.add(fileId);
+  }
+}
+
+function collectSourceFileIds(target, record) {
+  addFileId(target, record && record.sourceFileId);
+
+  const sourceFiles = Array.isArray(record && record.sourceFiles) ? record.sourceFiles : [];
+  sourceFiles.forEach((source) => {
+    addFileId(target, source && (source.fileId || source.fileID || source.sourceFileId));
+  });
+}
+
+function collectFeedbackAttachmentFileIds(target, record) {
+  const attachments = Array.isArray(record && record.attachments) ? record.attachments : [];
+  attachments.forEach((attachment) => {
+    addFileId(target, attachment && (attachment.fileId || attachment.fileID));
+  });
+}
+
+function collectUserFileIds(target, user) {
+  addFileId(target, user && user.avatar);
+}
+
+async function deleteCloudFiles(fileIds) {
+  const uniqueFileIds = Array.from(new Set(fileIds)).filter(Boolean);
+  let deletedCount = 0;
+  const failed = [];
+
+  for (let index = 0; index < uniqueFileIds.length; index += DELETE_FILE_BATCH_SIZE) {
+    const fileList = uniqueFileIds.slice(index, index + DELETE_FILE_BATCH_SIZE);
+
+    try {
+      const result = await cloud.deleteFile({ fileList });
+      const results = Array.isArray(result && result.fileList) ? result.fileList : [];
+      deletedCount += results.filter((item) => !item.status && !item.errMsg).length;
+      results.forEach((item) => {
+        if (item && (item.status || item.errMsg)) {
+          failed.push({
+            fileID: item.fileID || item.fileId || '',
+            status: item.status || 0,
+            errMsg: item.errMsg || ''
+          });
+        }
+      });
+    } catch (error) {
+      console.error('deleteCloudFiles failed', {
+        count: fileList.length,
+        errMsg: error && (error.errMsg || error.message)
+      });
+      fileList.forEach((fileID) => {
+        failed.push({
+          fileID,
+          status: -1,
+          errMsg: error && (error.errMsg || error.message) || 'deleteFile failed'
+        });
+      });
+    }
+  }
+
+  return {
+    total: uniqueFileIds.length,
+    deletedCount,
+    failed
+  };
+}
+
 async function handleLoginOrCreate(event) {
   const username = normalizeUsername(event.username);
 
@@ -124,11 +195,18 @@ async function handleUpdateAvatar(event) {
     return { ok: false, message: '账号不存在' };
   }
 
+  const oldAvatarFileIds = new Set();
+  addFileId(oldAvatarFileIds, user.avatar);
+
   await users.doc(user._id).update({
     data: {
       avatar
     }
   });
+
+  if (String(user.avatar || '').trim() !== String(avatar || '').trim()) {
+    await deleteCloudFiles(Array.from(oldAvatarFileIds));
+  }
 
   return {
     ok: true,
@@ -180,13 +258,30 @@ async function handleDeleteAccount(event) {
     queryOwnedRecords(ocrTasks, ownerKey, user._id),
     queryOwnedRecords(feedbacks, ownerKey, user._id)
   ]);
+  const fileIds = new Set();
+
+  ownedDocuments.forEach((doc) => collectSourceFileIds(fileIds, doc));
+  ownedTasks.forEach((task) => collectSourceFileIds(fileIds, task));
+  ownedFeedbacks.forEach((item) => collectFeedbackAttachmentFileIds(fileIds, item));
+  collectUserFileIds(fileIds, user);
+
+  const fileDeleteResult = await deleteCloudFiles(Array.from(fileIds));
 
   await Promise.all(ownedDocuments.map((doc) => documents.doc(doc._id).remove()));
   await Promise.all(ownedTasks.map((task) => ocrTasks.doc(task._id).remove()));
   await Promise.all(ownedFeedbacks.map((item) => feedbacks.doc(item._id).remove()));
   await users.doc(user._id).remove();
 
-  return { ok: true };
+  return {
+    ok: true,
+    deleted: {
+      documents: ownedDocuments.length,
+      ocrTasks: ownedTasks.length,
+      feedbacks: ownedFeedbacks.length,
+      files: fileDeleteResult.deletedCount,
+      fileFailures: fileDeleteResult.failed.length
+    }
+  };
 }
 
 function unsupportedAuthMode() {

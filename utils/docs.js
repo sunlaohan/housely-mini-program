@@ -2,6 +2,10 @@ function docsCollection() {
   return wx.cloud.database().collection('documents');
 }
 
+function ocrTasksCollection() {
+  return wx.cloud.database().collection('ocr_tasks');
+}
+
 function isMissingCollectionError(error) {
   const text = `${(error && error.errMsg) || ''}${(error && error.message) || ''}`;
   return text.includes('collection') && (text.includes('does not exist') || text.includes('不存在'));
@@ -71,6 +75,16 @@ function buildSourcePayload(record) {
     sourceFileId: String(record && record.sourceFileId || (primarySource && primarySource.fileId) || '').trim(),
     sourceCloudPath: String(record && record.sourceCloudPath || (primarySource && primarySource.cloudPath) || '').trim()
   };
+}
+
+function getSourceFileIds(record) {
+  const fileIds = new Set();
+  getSourceFiles(record).forEach((source) => {
+    if (source.fileId) {
+      fileIds.add(source.fileId);
+    }
+  });
+  return Array.from(fileIds);
 }
 
 function isOwnedByUser(doc, user) {
@@ -146,6 +160,57 @@ async function getDocuments(user) {
   });
 }
 
+async function getReferencedSourceFileIds(user, excludeDocId = '') {
+  const docs = await getDocuments(user);
+  const referenced = new Set();
+
+  docs.forEach((doc) => {
+    if (excludeDocId && doc.id === excludeDocId) {
+      return;
+    }
+
+    getSourceFileIds(doc).forEach((fileId) => referenced.add(fileId));
+  });
+
+  return referenced;
+}
+
+async function getRelatedOcrTasks(user, doc) {
+  if (!doc || !doc.ocrTaskId) {
+    return [];
+  }
+
+  const result = await runSafeQuery(ocrTasksCollection().where({
+    _id: doc.ocrTaskId
+  }).limit(1));
+
+  return (result.data || []).filter((task) => isOwnedByUser(task, user));
+}
+
+async function deleteCloudFiles(fileIds) {
+  const uniqueFileIds = Array.from(new Set(fileIds))
+    .map((fileId) => String(fileId || '').trim())
+    .filter((fileId) => fileId && fileId.startsWith('cloud://'));
+
+  if (!uniqueFileIds.length || !wx.cloud || typeof wx.cloud.deleteFile !== 'function') {
+    return;
+  }
+
+  try {
+    await wx.cloud.deleteFile({
+      fileList: uniqueFileIds
+    });
+  } catch (error) {
+    console.error('deleteCloudFiles failed', error);
+  }
+}
+
+async function deleteUnreferencedSourceFiles(user, candidateFileIds, excludeDocId = '') {
+  const referenced = await getReferencedSourceFileIds(user, excludeDocId);
+  const removableFileIds = candidateFileIds.filter((fileId) => !referenced.has(fileId));
+  await deleteCloudFiles(removableFileIds);
+}
+
 async function addDocument(user, doc) {
   const now = new Date();
   const { ownerKey, legacyUserId } = getOwnerInfo(user);
@@ -192,7 +257,15 @@ async function updateDocument(user, docId, patch) {
     return null;
   }
 
+  const previousFileIds = getSourceFileIds(doc);
+  const previousTaskId = doc.ocrTaskId || '';
   const sourcePayload = buildSourcePayload(patch);
+  const nextFileIdSet = new Set(sourcePayload.sourceFiles.map((source) => source.fileId).filter(Boolean));
+  const removedFileIds = previousFileIds.filter((fileId) => !nextFileIdSet.has(fileId));
+  const nextTaskId = patch.ocrTaskId || '';
+  const shouldRemovePreviousTask = previousTaskId && previousTaskId !== nextTaskId;
+  const removedTasks = shouldRemovePreviousTask ? await getRelatedOcrTasks(user, doc) : [];
+  const removedTaskFileIds = removedTasks.flatMap(getSourceFileIds);
   const payload = {
     name: patch.name,
     description: patch.description,
@@ -212,6 +285,9 @@ async function updateDocument(user, docId, patch) {
     data: payload
   });
 
+  await Promise.all(removedTasks.map((task) => ocrTasksCollection().doc(task._id).remove()));
+  await deleteUnreferencedSourceFiles(user, removedFileIds.concat(removedTaskFileIds), docId);
+
   return {
     ...doc,
     ...payload
@@ -224,7 +300,11 @@ async function deleteDocument(user, docId) {
     return;
   }
 
+  const relatedTasks = await getRelatedOcrTasks(user, doc);
+  const fileIds = getSourceFileIds(doc).concat(relatedTasks.flatMap(getSourceFileIds));
   await docsCollection().doc(docId).remove();
+  await Promise.all(relatedTasks.map((task) => ocrTasksCollection().doc(task._id).remove()));
+  await deleteUnreferencedSourceFiles(user, fileIds, docId);
 }
 
 async function deleteDocuments(user, docIds) {

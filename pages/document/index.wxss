@@ -244,9 +244,21 @@ page {
   font-weight: 600;
 }
 
+.document-card__title-text,
 .document-card__title-segment,
+.document-card__content-text,
 .document-card__content-segment {
   color: #2e3742;
+}
+
+.document-card__title-text,
+.document-card__content-text {
+  display: block;
+  width: 100%;
+  word-break: break-all;
+  white-space: pre-wrap;
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .document-card__content {

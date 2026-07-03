@@ -176,6 +176,7 @@ function buildPreviewData(doc, keyword = '') {
 
   return {
     title,
+    plainContent: content || '暂无文档内容',
     titleSegments,
     contentLines,
     firstAnchorId
@@ -200,6 +201,8 @@ Page(withPageShare({
     titleTextStyle: '',
     contentTextStyle: '',
     emptyLineStyle: '',
+    plainTitle: '',
+    plainContent: '',
     sourcePreviewUrls: []
   },
 
@@ -309,6 +312,8 @@ Page(withPageShare({
     const previewData = buildPreviewData(doc, keyword);
     const nextData = {
       doc,
+      plainTitle: previewData.title,
+      plainContent: previewData.plainContent,
       titleSegments: previewData.titleSegments,
       contentLines: previewData.contentLines,
       searchKeyword: keyword,

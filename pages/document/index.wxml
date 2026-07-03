@@ -4,7 +4,7 @@
       <view class="document-navbar__back" bindtap="goBack">
         <image class="document-navbar__back-icon" src="../../assets/auth/arrow-left.svg" mode="aspectFit" />
       </view>
-      <view class="document-navbar__title">文档详情</view>
+      <view class="document-navbar__title">记忆详情</view>
     </view>
   </view>
 
@@ -64,20 +64,38 @@
 
       <view class="document-card">
         <view id="detail-title-anchor" class="document-card__title">
-          <block wx:for="{{titleSegments}}" wx:key="id" wx:for-item="segment">
-            <text class="document-card__title-segment {{segment.matched ? 'document-card__segment--matched' : ''}}" style="{{titleTextStyle}}">{{segment.text}}</text>
+          <text
+            wx:if="{{!searchKeyword}}"
+            class="document-card__title-text"
+            style="{{titleTextStyle}}"
+            user-select="{{true}}"
+            selectable="{{true}}"
+          >{{plainTitle}}</text>
+          <block wx:else>
+            <block wx:for="{{titleSegments}}" wx:key="id" wx:for-item="segment">
+              <text class="document-card__title-segment {{segment.matched ? 'document-card__segment--matched' : ''}}" style="{{titleTextStyle}}">{{segment.text}}</text>
+            </block>
           </block>
         </view>
 
         <view class="document-card__content">
-          <block wx:for="{{contentLines}}" wx:key="id" wx:for-item="line">
-            <view id="{{line.id}}" class="document-card__line {{line.isEmpty ? 'document-card__line--empty' : ''}}" style="{{line.isEmpty ? emptyLineStyle : ''}}">
-              <block wx:if="{{!line.isEmpty}}">
-                <block wx:for="{{line.segments}}" wx:key="id" wx:for-item="segment">
-                  <text class="document-card__content-segment {{segment.matched ? 'document-card__segment--matched' : ''}}" style="{{contentTextStyle}}">{{segment.text}}</text>
+          <text
+            wx:if="{{!searchKeyword}}"
+            class="document-card__content-text"
+            style="{{contentTextStyle}}"
+            user-select="{{true}}"
+            selectable="{{true}}"
+          >{{plainContent}}</text>
+          <block wx:else>
+            <block wx:for="{{contentLines}}" wx:key="id" wx:for-item="line">
+              <view id="{{line.id}}" class="document-card__line {{line.isEmpty ? 'document-card__line--empty' : ''}}" style="{{line.isEmpty ? emptyLineStyle : ''}}">
+                <block wx:if="{{!line.isEmpty}}">
+                  <block wx:for="{{line.segments}}" wx:key="id" wx:for-item="segment">
+                    <text class="document-card__content-segment {{segment.matched ? 'document-card__segment--matched' : ''}}" style="{{contentTextStyle}}">{{segment.text}}</text>
+                  </block>
                 </block>
-              </block>
-            </view>
+              </view>
+            </block>
           </block>
         </view>
       </view>

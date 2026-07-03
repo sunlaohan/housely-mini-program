@@ -50,11 +50,22 @@ page {
   box-sizing: border-box;
 }
 
+.profile-body--guest {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 48rpx;
+}
+
 .profile-user {
   display: flex;
   flex-direction: column;
   align-items: center;
   padding-top: 22rpx;
+}
+
+.profile-user--guest {
+  padding-top: 0;
 }
 
 .profile-avatar {
@@ -72,6 +83,35 @@ page {
   line-height: 48rpx;
   font-weight: 600;
   text-align: center;
+}
+
+.profile-name--guest {
+  margin-top: 32rpx;
+  font-size: 32rpx;
+  line-height: 48rpx;
+}
+
+.profile-guest-section {
+  width: 100%;
+  margin-top: 80rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 32rpx;
+  box-sizing: border-box;
+}
+
+.profile-login-card {
+  width: 100%;
+  padding: 48rpx 32rpx;
+  background: #ffffff;
+  border-radius: 16rpx;
+  box-sizing: border-box;
+  color: #8b949e;
+  font-size: 28rpx;
+  line-height: 44rpx;
+  font-weight: 400;
+  text-align: center;
+  white-space: pre-wrap;
 }
 
 .profile-section {
@@ -415,5 +455,5 @@ page {
   font-size: 28rpx;
   font-weight: 400;
   line-height: 1.57;
-  color: #626c78;
+  color: #626C78;
 }

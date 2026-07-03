@@ -3,11 +3,14 @@ page {
 }
 
 .home-shell {
-  min-height: 100vh;
+  height: 100vh;
   padding: 16rpx 32rpx 220rpx;
   padding-bottom: calc(220rpx + constant(safe-area-inset-bottom));
   padding-bottom: calc(220rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .home-shell--batch {
@@ -397,6 +400,13 @@ page {
 
 .doc-list {
   margin-top: 20rpx;
+}
+
+.home-content-scroll {
+  flex: 1;
+  height: 0;
+  min-height: 0;
+  box-sizing: border-box;
 }
 
 .doc-list__group {

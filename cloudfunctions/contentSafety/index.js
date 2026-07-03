@@ -63,6 +63,10 @@ function getSafeMessage(error) {
   return '内容安全校验失败，请稍后再试';
 }
 
+function getDebugMessage(error) {
+  return String(error && (error.errMsg || error.message) || '').trim();
+}
+
 function normalizeMediaFiles(files = []) {
   const seen = new Set();
 
@@ -139,7 +143,8 @@ async function checkText(event) {
       return {
         ok: false,
         safe: false,
-        message: getSafeMessage(error)
+        message: getSafeMessage(error),
+        debugMessage: getDebugMessage(error)
       };
     }
   }
@@ -171,7 +176,8 @@ async function checkMedia(event) {
       return {
         ok: false,
         safe: false,
-        message: '图片安全校验失败，请稍后再试'
+        message: '图片安全校验失败，请稍后再试',
+        debugMessage: `missing temp url: ${file.fileId}`
       };
     }
 
@@ -192,7 +198,8 @@ async function checkMedia(event) {
       return {
         ok: false,
         safe: false,
-        message: getSafeMessage(error)
+        message: getSafeMessage(error),
+        debugMessage: getDebugMessage(error)
       };
     }
   }
