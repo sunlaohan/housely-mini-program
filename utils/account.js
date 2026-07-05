@@ -1,4 +1,5 @@
 const { KEYS, read, write, remove } = require('./storage');
+const { clearLocalCategories } = require('./categories');
 const DEFAULT_AVATAR = '/assets/auth/boy-1.png';
 const DEFAULT_PREVIEW_FONT_SCALE = 1;
 const MIN_PREVIEW_FONT_SCALE = 1;
@@ -130,10 +131,15 @@ async function deleteAccount(user) {
   });
 
   if (result.ok) {
+    clearLocalCategories(user);
     logout();
+    return result;
   }
 
-  return result;
+  const error = new Error(result.message || '注销失败');
+  error.code = result.code || 'DELETE_ACCOUNT_FAILED';
+  error.result = result;
+  throw error;
 }
 
 module.exports = {

@@ -176,6 +176,7 @@ function toDraftFromTask(task, sources = []) {
   const sourceName = task.sourceName || buildSourceDisplayName(sourceFiles);
   const baseName = sourceName.replace(/\.[^.]+$/, '') || '未命名扫描件';
   const markdown = task.markdown || '';
+  const noText = Boolean(task.noText || !markdown.trim());
 
   return {
     sourceFiles,
@@ -185,9 +186,10 @@ function toDraftFromTask(task, sources = []) {
     ocrTaskId: task.id,
     ocrStatus: task.status,
     ocrProvider: task.provider || ocrConfig.provider,
-    name: buildDraftName(markdown, baseName),
-    description: buildDescription(task.summary, sourceFiles.length || 1),
-    markdown
+    noText,
+    name: noText ? '' : buildDraftName(markdown, baseName),
+    description: noText ? '' : buildDescription(task.summary, sourceFiles.length || 1),
+    markdown: noText ? '' : markdown
   };
 }
 
@@ -255,6 +257,7 @@ function toDraftFromTaskEntries(taskEntries, sources = []) {
   const baseName = sourceName.replace(/\.[^.]+$/, '') || '未命名扫描件';
   const latestTask = taskEntries[taskEntries.length - 1] && taskEntries[taskEntries.length - 1].task;
   const markdown = buildCombinedMarkdown(taskEntries);
+  const noText = !String(markdown || '').trim();
   const firstMarkdown = (Array.isArray(taskEntries) ? taskEntries : [])
     .map((entry) => entry && entry.task && entry.task.markdown)
     .find((item) => getFirstRecognizedLine(item)) || markdown;
@@ -267,9 +270,10 @@ function toDraftFromTaskEntries(taskEntries, sources = []) {
     ocrTaskId: latestTask && latestTask.id ? latestTask.id : '',
     ocrStatus: latestTask && latestTask.status ? latestTask.status : 'success',
     ocrProvider: latestTask && latestTask.provider ? latestTask.provider : ocrConfig.provider,
-    name: buildDraftName(firstMarkdown, baseName),
-    description: buildDescription(`已识别${sourceFiles.length}张图片`, sourceFiles.length || 1),
-    markdown
+    noText,
+    name: noText ? '' : buildDraftName(firstMarkdown, baseName),
+    description: noText ? '' : buildDescription(`已识别${sourceFiles.length}张图片`, sourceFiles.length || 1),
+    markdown: noText ? '' : markdown
   };
 }
 
@@ -563,7 +567,14 @@ async function createDraftFromSources(currentUser, sources, options = {}) {
   return toDraftFromTaskEntries(taskEntries, uploadedSources);
 }
 
+async function uploadSourcesForStorage(currentUser, sources, options = {}) {
+  const { ownerKey } = getTaskOwner(currentUser);
+  const sourceFiles = normalizeSourceList(sources);
+  return uploadSourcesToCloud(sourceFiles, ownerKey, options.onProgress);
+}
+
 module.exports = {
   chooseImageSources,
-  createDraftFromSources
+  createDraftFromSources,
+  uploadSourcesForStorage
 };

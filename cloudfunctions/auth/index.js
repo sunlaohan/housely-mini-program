@@ -9,11 +9,18 @@ const users = db.collection('users');
 const documents = db.collection('documents');
 const ocrTasks = db.collection('ocr_tasks');
 const feedbacks = db.collection('feedbacks');
+const categories = db.collection('categories');
 const DEFAULT_AVATAR = '/assets/auth/boy-1.png';
 const DEFAULT_PREVIEW_FONT_SCALE = 1;
 const MIN_PREVIEW_FONT_SCALE = 1;
 const MAX_PREVIEW_FONT_SCALE = 2.4;
 const DELETE_FILE_BATCH_SIZE = 50;
+
+function isMissingCollectionError(error) {
+  const text = `${(error && error.errMsg) || ''}${(error && error.message) || ''}`;
+  return text.includes('collection') && (text.includes('does not exist') || text.includes('不存在'))
+    || text.includes('Db or Table not exist');
+}
 
 function normalizePreviewFontScale(value) {
   const numericValue = Number(value);
@@ -79,6 +86,28 @@ async function queryOwnedRecords(collection, ownerKey, legacyUserId) {
   });
 
   return Array.from(recordMap.values());
+}
+
+async function queryOwnedRecordsSafe(collection, ownerKey, legacyUserId) {
+  try {
+    return await queryOwnedRecords(collection, ownerKey, legacyUserId);
+  } catch (error) {
+    if (isMissingCollectionError(error)) {
+      return [];
+    }
+    throw error;
+  }
+}
+
+async function removeRecordsSafe(collection, records) {
+  try {
+    await Promise.all(records.map((record) => collection.doc(record._id).remove()));
+  } catch (error) {
+    if (isMissingCollectionError(error)) {
+      return;
+    }
+    throw error;
+  }
 }
 
 function addFileId(target, value) {
@@ -253,10 +282,11 @@ async function handleDeleteAccount(event) {
   }
 
   const ownerKey = user.username || username;
-  const [ownedDocuments, ownedTasks, ownedFeedbacks] = await Promise.all([
+  const [ownedDocuments, ownedTasks, ownedFeedbacks, ownedCategories] = await Promise.all([
     queryOwnedRecords(documents, ownerKey, user._id),
     queryOwnedRecords(ocrTasks, ownerKey, user._id),
-    queryOwnedRecords(feedbacks, ownerKey, user._id)
+    queryOwnedRecords(feedbacks, ownerKey, user._id),
+    queryOwnedRecordsSafe(categories, ownerKey, user._id)
   ]);
   const fileIds = new Set();
 
@@ -265,12 +295,13 @@ async function handleDeleteAccount(event) {
   ownedFeedbacks.forEach((item) => collectFeedbackAttachmentFileIds(fileIds, item));
   collectUserFileIds(fileIds, user);
 
-  const fileDeleteResult = await deleteCloudFiles(Array.from(fileIds));
-
   await Promise.all(ownedDocuments.map((doc) => documents.doc(doc._id).remove()));
   await Promise.all(ownedTasks.map((task) => ocrTasks.doc(task._id).remove()));
   await Promise.all(ownedFeedbacks.map((item) => feedbacks.doc(item._id).remove()));
+  await removeRecordsSafe(categories, ownedCategories);
   await users.doc(user._id).remove();
+
+  const fileDeleteResult = await deleteCloudFiles(Array.from(fileIds));
 
   return {
     ok: true,
@@ -278,6 +309,7 @@ async function handleDeleteAccount(event) {
       documents: ownedDocuments.length,
       ocrTasks: ownedTasks.length,
       feedbacks: ownedFeedbacks.length,
+      categories: ownedCategories.length,
       files: fileDeleteResult.deletedCount,
       fileFailures: fileDeleteResult.failed.length
     }

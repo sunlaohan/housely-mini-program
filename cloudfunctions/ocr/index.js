@@ -88,6 +88,7 @@ function sanitizeTask(task) {
     markdown: task.markdown || '',
     rawJson: task.rawJson || null,
     summary: task.summary || '',
+    noText: Boolean(task.noText),
     errorMessage: task.errorMessage || '',
     createdAt: task.createdAt || '',
     updatedAt: task.updatedAt || ''
@@ -185,8 +186,14 @@ function getOcrMode() {
   return SUPPORTED_MODES.includes(mode) ? mode : 'mock';
 }
 
-function shouldFallbackToMock() {
-  return Boolean(ocrConfig && ocrConfig.fallbackToMockOnFailure);
+function buildNoTextResult(provider, rawJson) {
+  return {
+    provider,
+    markdown: '',
+    rawJson: rawJson || {},
+    summary: '未识别到文字内容',
+    noText: true
+  };
 }
 
 function hasConfiguredHttpService() {
@@ -428,24 +435,6 @@ async function handleMockCompleteTask(event) {
   };
 }
 
-function buildMockResultForSource(source) {
-  const title = source && source.fileName ? source.fileName : '未命名扫描件';
-
-  return {
-    provider: 'MinerU',
-    markdown: [
-      `### ${title}`,
-      '当前环境未成功连接到可用 OCR 服务，已回退为演示识别结果。',
-      '如需真实识别，请在 cloudfunctions/ocr/config.js 中配置 http 模式并部署 ocr 云函数。'
-    ].join('\n'),
-    rawJson: {
-      mock: true,
-      reason: 'fallback'
-    },
-    summary: `已为 ${title} 生成演示识别内容`
-  };
-}
-
 async function getSourceTempUrl(sourceFileId) {
   const tempFile = await cloud.getTempFileURL({
     fileList: [sourceFileId]
@@ -462,7 +451,7 @@ async function processTaskWithOfficial(source, tempUrl) {
 
   const plainText = extractPrintedText(officialResult);
   if (!plainText) {
-    throw new Error('微信官方 OCR 已返回结果，但未提取到文本内容');
+    return buildNoTextResult('WeChat OCR', officialResult || {});
   }
 
   return {
@@ -509,12 +498,7 @@ async function processTaskWithHttp(task, source, tempUrl) {
   }
 
   if (!result.markdown) {
-    return {
-      provider: ocrConfig.provider || task.provider,
-      markdown: '',
-      rawJson: result.rawJson || {},
-      summary: result.summary || ''
-    };
+    return buildNoTextResult(ocrConfig.provider || task.provider, result.rawJson || result);
   }
 
   return {
@@ -621,22 +605,12 @@ async function handleProcessTask(event) {
           continue;
         }
 
-        if (shouldFallbackToMock()) {
-          results.push({
-            source,
-            ...buildMockResultForSource(source)
-          });
-          continue;
-        }
-
         throw new Error(normalizeOfficialOcrError(officialError));
       }
     }
 
     const markdown = buildCombinedMarkdown(results);
-    if (!markdown) {
-      throw new Error('OCR 已返回结果，但未提取到文本内容');
-    }
+    const noText = !markdown;
 
     const successTask = await markTask(taskId, {
       status: 'success',
@@ -650,7 +624,8 @@ async function handleProcessTask(event) {
           rawJson: item.rawJson || {}
         }))
       }),
-      summary: `已识别${sourceFiles.length}张图片`,
+      summary: noText ? '未识别到文字内容' : `已识别${sourceFiles.length}张图片`,
+      noText,
       errorMessage: '',
       updatedAt: new Date()
     }, task);

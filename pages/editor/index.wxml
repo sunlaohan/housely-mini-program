@@ -12,13 +12,22 @@
     <view class="editor-upload-card">
       <view class="editor-section-title">拍照/上传图片</view>
 
-      <view class="editor-upload-grid">
+      <view class="editor-upload-grid {{dragActive ? 'editor-upload-grid--dragging' : ''}}">
         <view wx:if="{{sourceFiles.length < maxSourceCount}}" class="editor-upload-trigger" bindtap="pickImages">
           <image class="editor-upload-trigger__icon" src="../../assets/auth/photograph.svg" mode="aspectFit" />
         </view>
 
         <block wx:for="{{sourceFiles}}" wx:key="key">
-          <view class="editor-upload-preview">
+          <view
+            class="editor-upload-preview {{dragSourceKey === item.key ? 'editor-upload-preview--dragging' : ''}}"
+            data-key="{{item.key}}"
+            data-index="{{index}}"
+            bindlongpress="startSourceDrag"
+            bindtouchmove="onSourceDragMove"
+            bindtouchend="endSourceDrag"
+            bindtouchcancel="endSourceDrag"
+            style="{{item.dragStyle || ''}}"
+          >
             <image
               class="editor-upload-preview__image"
               src="{{item.previewUrl}}"
@@ -26,6 +35,7 @@
               data-key="{{item.key}}"
               bindtap="previewSource"
             />
+            <view wx:if="{{index === 0}}" class="editor-upload-preview__cover-label">封面</view>
             <image
               class="editor-upload-preview__remove"
               src="../../assets/auth/close-mask.svg"
@@ -66,9 +76,21 @@
       />
     </view>
 
+    <view class="editor-category-card" bindtap="openCategoryPanel">
+      <view class="editor-category-row">
+        <view class="editor-category-label">
+          <text class="editor-field-card__required">*</text>
+          <text>选择分类</text>
+        </view>
+        <view class="editor-category-value">
+          <text>{{selectedCategoryName}}</text>
+          <view class="editor-category-arrow"></view>
+        </view>
+      </view>
+    </view>
+
     <view class="editor-field-card editor-field-card--textarea">
       <view class="editor-field-card__label">
-        <text class="editor-field-card__required">*</text>
         <text>描述/识别内容</text>
       </view>
       <textarea
@@ -93,4 +115,80 @@
   <view class="editor-footer {{markdownFocused ? 'editor-footer--hidden' : ''}}">
     <app-button text="{{mode === 'edit' ? '保存修改' : '确定'}}" variant="dark" width-mode="full" loading="{{isSaving}}" disabled="{{isScanning || isSaving}}" bind:press="saveDocument" />
   </view>
+
+  <bottom-sheet visible="{{categoryPanelVisible}}" bind:close="closeCategoryPanel">
+    <view class="category-sheet">
+      <view class="category-sheet__header">
+        <view class="category-sheet__close" bindtap="closeCategoryPanel">×</view>
+        <view class="category-sheet__title">选择分类</view>
+        <view class="category-sheet__add" bindtap="showNewCategoryInput">新增</view>
+      </view>
+
+      <scroll-view class="category-sheet__scroll" scroll-y enhanced show-scrollbar="{{false}}">
+        <view class="category-sheet__notice">
+          <image class="category-sheet__notice-icon" src="../../assets/auth/info-o.svg" mode="aspectFit" />
+          <text>左滑可删除分类，默认分类不支持编辑和删除</text>
+        </view>
+
+        <view class="category-sheet__list" bindtap="saveNewCategoryDraft">
+          <view wx:if="{{newCategoryDraftVisible}}" class="category-row category-row--draft" catchtap="noop">
+            <input
+              class="category-row__input"
+              value="{{newCategoryDraftName}}"
+              placeholder="输入分类名称"
+              placeholder-class="category-row__placeholder"
+              focus="{{newCategoryDraftFocus}}"
+              maxlength="17"
+              confirm-type="done"
+              bindinput="onNewCategoryInput"
+              bindblur="saveNewCategoryDraft"
+              bindconfirm="saveNewCategoryDraft"
+            />
+          </view>
+
+          <block wx:for="{{categories}}" wx:key="id">
+            <view
+              class="category-swipe-shell {{item.swipeOffset ? 'category-swipe-shell--open' : ''}}"
+              data-id="{{item.id}}"
+              bindtouchstart="onCategoryTouchStart"
+              bindtouchmove="onCategoryTouchMove"
+              bindtouchend="onCategoryTouchEnd"
+              bindtouchcancel="onCategoryTouchEnd"
+            >
+              <view wx:if="{{!item.isDefault}}" class="category-actions">
+                <view class="category-action category-action--delete" data-id="{{item.id}}" catchtap="confirmDeleteCategory">删除</view>
+              </view>
+
+              <view
+                class="category-row {{selectedCategoryId === item.id ? 'category-row--selected' : ''}}"
+                style="transform: translateX(-{{item.swipeOffset || 0}}rpx);"
+                data-id="{{item.id}}"
+                bindtap="selectCategory"
+              >
+                <input
+                  wx:if="{{item.editing}}"
+                  class="category-row__input"
+                  value="{{item.draftName}}"
+                  focus="{{item.focus}}"
+                  data-id="{{item.id}}"
+                  maxlength="17"
+                  confirm-type="done"
+                  catchtap="noop"
+                  bindinput="onCategoryEditInput"
+                  bindblur="saveCategoryEdit"
+                  bindconfirm="saveCategoryEdit"
+                />
+                <view wx:elif="{{!item.isDefault}}" class="category-row__edit-hotspot" data-id="{{item.id}}" catchtap="startEditCategory">
+                  <text class="category-row__name">{{item.name}}</text>
+                  <image class="category-row__edit-icon" src="../../assets/auth/edit.svg" mode="aspectFit" />
+                </view>
+                <text wx:else class="category-row__name">{{item.name}}</text>
+                <view wx:if="{{selectedCategoryId === item.id && !item.editing}}" class="category-row__check"></view>
+              </view>
+            </view>
+          </block>
+        </view>
+      </scroll-view>
+    </view>
+  </bottom-sheet>
 </view>

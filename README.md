@@ -43,7 +43,7 @@
 - 支持意见反馈，并上传图片 / 视频附件
 - 反馈提交前会进行文本与图片内容安全校验
 - 支持退出登录
-- 支持注销账号，并联动清理本人 `users`、`documents`、`ocr_tasks`、`feedbacks` 记录及相关云存储文件
+- 支持注销账号，并联动清理本人 `users`、`documents`、`categories`、`ocr_tasks`、`feedbacks` 记录及相关云存储文件
 
 ### 6. 云端能力
 
@@ -92,6 +92,7 @@
 5. 在云开发数据库中手动创建以下集合：
    - `users`
    - `documents`
+   - `categories`
    - `ocr_tasks`
    - `feedbacks`
 6. 重新编译项目。
@@ -100,6 +101,7 @@
 
 - `users`：所有用户不可读写，仅通过 `auth` 云函数访问
 - `documents`：仅创建者可读写
+- `categories`：仅创建者可读写
 - `ocr_tasks`：所有用户不可直接读写，仅通过 `ocr` 云函数访问
 - `feedbacks`：仅创建者可读写，后续可按实际运营流程继续收紧
 

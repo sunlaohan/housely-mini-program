@@ -97,6 +97,8 @@ function isOwnedByUser(doc, user) {
 
 function mapDoc(doc) {
   const sourcePayload = buildSourcePayload(doc);
+  const categoryId = String(doc.categoryId || 'default').trim() || 'default';
+  const categoryName = String(doc.categoryName || '默认分类').trim() || '默认分类';
 
   return {
     id: doc._id || doc.id,
@@ -105,6 +107,8 @@ function mapDoc(doc) {
     name: doc.name,
     description: doc.description || '',
     markdown: doc.markdown || '',
+    categoryId,
+    categoryName,
     sourceFiles: sourcePayload.sourceFiles,
     sourceName: sourcePayload.sourceName,
     sourceType: sourcePayload.sourceType,
@@ -222,6 +226,8 @@ async function addDocument(user, doc) {
     name: doc.name,
     description: doc.description,
     markdown: doc.markdown,
+    categoryId: doc.categoryId || 'default',
+    categoryName: doc.categoryName || '默认分类',
     sourceFiles: sourcePayload.sourceFiles,
     sourceName: sourcePayload.sourceName,
     sourceType: sourcePayload.sourceType,
@@ -270,6 +276,8 @@ async function updateDocument(user, docId, patch) {
     name: patch.name,
     description: patch.description,
     markdown: patch.markdown,
+    categoryId: patch.categoryId || doc.categoryId || 'default',
+    categoryName: patch.categoryName || doc.categoryName || '默认分类',
     sourceFiles: sourcePayload.sourceFiles,
     sourceName: sourcePayload.sourceName,
     sourceType: sourcePayload.sourceType,

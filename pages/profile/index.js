@@ -526,6 +526,10 @@ Page(withPageShare({
     this.setData({
       feedbackSubmitting: true
     });
+    wx.showLoading({
+      title: '提交中...',
+      mask: true
+    });
 
     try {
       const result = await submitFeedback(this.data.currentUser, this.data.feedbackForm);
@@ -558,6 +562,7 @@ Page(withPageShare({
         showCancel: false
       });
     } finally {
+      wx.hideLoading();
       this.setData({
         feedbackSubmitting: false
       });
@@ -583,13 +588,24 @@ Page(withPageShare({
         }
 
         try {
+          wx.showLoading({
+            title: '注销中...',
+            mask: true
+          });
           await deleteAccount(this.data.currentUser);
           getApp().setCurrentUser(null);
+          wx.hideLoading();
           wx.reLaunch({
             url: '/pages/home/index'
           });
         } catch (error) {
-          wx.showToast({ title: '注销失败', icon: 'none' });
+          wx.hideLoading();
+          const message = String(error && (error.message || error.errMsg) || '').trim();
+          wx.showToast({
+            title: message || '注销失败',
+            icon: 'none',
+            duration: 2500
+          });
         }
       }
     });

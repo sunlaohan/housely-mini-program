@@ -2,6 +2,9 @@ const KEYS = {
   USERS: 'housely_users',
   SESSION: 'housely_session',
   GUEST_ID: 'housely_guest_id',
+  COVER_URLS: 'housely_cover_urls',
+  DOC_COVERS: 'housely_doc_covers',
+  CATEGORIES_PREFIX: 'housely_categories_',
   DOCS_PREFIX: 'housely_docs_'
 };
 

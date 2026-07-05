@@ -69,7 +69,7 @@
   <view class="home-toolbar">
     <view class="home-toolbar-title">
       <image class="home-toolbar-icon" src="../../assets/auth/description.svg" mode="aspectFit"></image>
-      <text class="home-toolbar-text">记忆列表 ({{searchKeyword ? docs.length : allDocs.length}})</text>
+      <text class="home-toolbar-text">记忆列表 ({{docs.length}})</text>
     </view>
 
     <view class="home-toolbar-actions">
@@ -88,6 +88,37 @@
       <view wx:if="{{!batchMode && docs.length}}" class="add-fab" bindtap="goAdd">
         <image class="add-fab-icon" src="../../assets/auth/plus.svg" mode="aspectFit"></image>
       </view>
+      <view wx:if="{{!batchMode && !docs.length}}" class="home-toolbar-actions__placeholder"></view>
+    </view>
+  </view>
+
+  <view wx:if="{{allDocs.length && categories.length}}" class="home-category-wrap {{showCategoryMore ? 'home-category-wrap--more' : ''}}">
+    <scroll-view
+      class="home-category-tabs"
+      scroll-x
+      enhanced
+      show-scrollbar="{{false}}"
+      scroll-left="{{categoryScrollTargetLeft}}"
+      scroll-into-view="{{categoryScrollIntoView}}"
+      scroll-with-animation
+      bindscroll="onCategoryTabsScroll"
+    >
+      <view class="home-category-tabs__inner">
+        <block wx:for="{{categories}}" wx:key="id">
+          <view
+            id="category-tab-{{item.id}}"
+            class="home-category-tab {{selectedCategoryId === item.id ? 'home-category-tab--active' : ''}}"
+            data-id="{{item.id}}"
+            bindtap="switchCategory"
+          >
+            <text class="home-category-tab__text">{{item.name}}</text>
+          </view>
+        </block>
+      </view>
+    </scroll-view>
+
+    <view wx:if="{{showCategoryMore}}" class="home-category-more" catchtap="openCategoryChooser">
+      <image class="home-category-more__icon" src="../../assets/auth/wap-nav.svg" mode="aspectFit"></image>
     </view>
   </view>
 
@@ -131,6 +162,12 @@
                       <view wx:if="{{item.selected}}" class="doc-select__tick"></view>
                     </view>
                   </view>
+                  <view wx:if="{{item.coverFileId}}" class="doc-cover">
+                    <image wx:if="{{item.coverUrl}}" class="doc-cover__image" src="{{item.coverUrl}}" mode="aspectFill"></image>
+                    <view wx:else class="doc-cover__placeholder">
+                      <image class="doc-cover__placeholder-icon" src="../../assets/auth/photograph.svg" mode="aspectFit"></image>
+                    </view>
+                  </view>
                   <view class="doc-content">
                     <view class="doc-title-row">
                       <rich-text class="doc-name" nodes="{{item.titleRichText}}"></rich-text>
@@ -150,4 +187,28 @@
   <view wx:if="{{batchMode && docs.length}}" class="batch-footer">
     <app-button text="{{deleteSelectedText}}" variant="danger" width-mode="full" bind:press="deleteSelected" />
   </view>
+
+  <bottom-sheet visible="{{categoryChooserVisible}}" bind:close="closeCategoryChooser">
+    <view class="home-category-sheet">
+      <view class="home-category-sheet__header">
+        <view class="home-category-sheet__close" bindtap="closeCategoryChooser">×</view>
+        <view class="home-category-sheet__title">选择分类</view>
+      </view>
+
+      <scroll-view class="home-category-sheet__scroll" scroll-y enhanced show-scrollbar="{{false}}">
+        <view class="home-category-sheet__list">
+          <block wx:for="{{categories}}" wx:key="id">
+            <view
+              class="home-category-sheet__row {{selectedCategoryId === item.id ? 'home-category-sheet__row--selected' : ''}}"
+              data-id="{{item.id}}"
+              bindtap="chooseCategoryFromSheet"
+            >
+              <text class="home-category-sheet__name">{{item.name}}</text>
+              <view wx:if="{{selectedCategoryId === item.id}}" class="home-category-sheet__check"></view>
+            </view>
+          </block>
+        </view>
+      </scroll-view>
+    </view>
+  </bottom-sheet>
 </view>

@@ -2,6 +2,7 @@
   "enableShareAppMessage": true,
   "enableShareTimeline": true,
   "usingComponents": {
-    "app-button": "/components/app-button/index"
+    "app-button": "/components/app-button/index",
+    "bottom-sheet": "/components/bottom-sheet/index"
   }
 }

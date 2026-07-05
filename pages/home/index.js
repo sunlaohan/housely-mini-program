@@ -2,6 +2,13 @@ const { ensureAuth, formatDate } = require('../../utils/page');
 const { getDocuments, deleteDocument, deleteDocuments } = require('../../utils/docs');
 const { withPageShare } = require('../../utils/share');
 const { getCurrentUser } = require('../../utils/account');
+const { KEYS, read, write } = require('../../utils/storage');
+const {
+  DEFAULT_CATEGORY_ID,
+  getCategories,
+  getCategoryByIdFromList,
+  getDefaultCategory
+} = require('../../utils/categories');
 
 const TIMELINE_ENTRY = 'timeline';
 const TIMELINE_SCENE = 1154;
@@ -152,10 +159,25 @@ function buildHighlightedTitle(title = '', keyword = '') {
 function buildSearchableDoc(doc) {
   return {
     ...doc,
+    categoryId: String(doc && doc.categoryId || DEFAULT_CATEGORY_ID).trim() || DEFAULT_CATEGORY_ID,
+    categoryName: String(doc && doc.categoryName || '默认分类').trim() || '默认分类',
+    coverFileId: getDocCoverFileId(doc),
+    coverUrl: '',
     previewText: buildDocPreview(doc),
     titleRichText: escapeHtml(doc.name || ''),
     searchScore: 0
   };
+}
+
+function getDocCoverFileId(doc) {
+  const sourceFiles = Array.isArray(doc && doc.sourceFiles) ? doc.sourceFiles : [];
+  const coverSource = sourceFiles.find((source) => {
+    const fileId = String(source && source.fileId || '').trim();
+    const type = String(source && source.type || 'image').trim();
+    return fileId && type === 'image';
+  });
+
+  return coverSource ? String(coverSource.fileId || '').trim() : '';
 }
 
 function scoreDocMatch(doc, keyword = '') {
@@ -210,6 +232,16 @@ Page(withPageShare({
     shareLandingVisible: false,
     shareHighlights: SHARE_HIGHLIGHTS,
     shareScenes: SHARE_SCENES,
+    categories: [getDefaultCategory()],
+    selectedCategoryId: DEFAULT_CATEGORY_ID,
+    showCategoryMore: false,
+    categoryHasOverflow: false,
+    categoryScrollLeft: 0,
+    categoryScrollTargetLeft: 0,
+    categoryScrollWidth: 0,
+    categoryWrapWidth: 0,
+    categoryScrollIntoView: '',
+    categoryChooserVisible: false,
     allDocs: [],
     docs: [],
     isLoadingDocs: false,
@@ -235,7 +267,7 @@ Page(withPageShare({
     });
   },
 
-  onShow() {
+  async onShow() {
     const currentUser = getCurrentUser();
     const shareLandingVisible = !currentUser && this.data.shareEntry === TIMELINE_ENTRY;
 
@@ -244,6 +276,16 @@ Page(withPageShare({
       this.setData({
         currentUser: null,
         shareLandingVisible,
+        categories: [getDefaultCategory()],
+        selectedCategoryId: DEFAULT_CATEGORY_ID,
+        showCategoryMore: false,
+        categoryHasOverflow: false,
+        categoryScrollLeft: 0,
+        categoryScrollTargetLeft: 0,
+        categoryScrollWidth: 0,
+        categoryWrapWidth: 0,
+        categoryScrollIntoView: '',
+        categoryChooserVisible: false,
         allDocs: [],
         docs: [],
         isLoadingDocs: false,
@@ -262,9 +304,13 @@ Page(withPageShare({
       return;
     }
 
+    const categories = await getCategories(currentUser);
     this.setData({
       shareLandingVisible: false,
+      categories,
       isLoadingDocs: !this.data.allDocs.length && !this.data.docs.length
+    }, () => {
+      this.syncCategoryMoreVisibility();
     });
     this.syncTabBar();
     ensureAuth(this, async (user) => {
@@ -292,13 +338,17 @@ Page(withPageShare({
     const { silent = false } = options;
 
     try {
-      const docs = (await getDocuments(user)).map(this.decorateDoc);
+      const docs = await this.hydrateDocCovers((await getDocuments(user)).map(this.decorateDoc));
+      const categories = await getCategories(user);
+      const currentCategory = getCategoryByIdFromList(categories, this.data.selectedCategoryId);
       const existingIds = new Set(docs.map((doc) => doc.id));
       const selectedIds = this.data.selectedIds.filter((id) => existingIds.has(id));
-      const visibleDocs = this.getVisibleDocs(docs, this.data.searchKeyword, selectedIds);
+      const visibleDocs = this.getVisibleDocs(docs, this.data.searchKeyword, selectedIds, currentCategory.id, categories);
       const batchSelection = this.getBatchSelectionState(visibleDocs, selectedIds);
       this.setData({
         currentUser: user,
+        categories,
+        selectedCategoryId: currentCategory.id,
         allDocs: docs,
         selectedIds,
         docs: visibleDocs,
@@ -306,6 +356,8 @@ Page(withPageShare({
         isLoadingDocs: false,
         contentRefreshing: false,
         ...batchSelection
+      }, () => {
+        this.syncCategoryMoreVisibility();
       });
       getApp().setCurrentUser(user);
     } catch (error) {
@@ -315,6 +367,68 @@ Page(withPageShare({
       });
       wx.showToast({ title: silent ? '刷新失败' : '加载文档失败', icon: 'none' });
     }
+  },
+
+  syncCategoryMoreVisibility() {
+    if (!this.data.allDocs.length || !this.data.categories || this.data.categories.length <= 1) {
+      this.setData({
+        showCategoryMore: false,
+        categoryHasOverflow: false
+      });
+      return;
+    }
+
+    const query = wx.createSelectorQuery().in(this);
+    query.select('.home-category-wrap').boundingClientRect();
+    query.select('.home-category-tabs__inner').boundingClientRect();
+    query.exec((result) => {
+      const wrapRect = result && result[0];
+      const innerRect = result && result[1];
+      const fallbackVisible = this.data.categories.length > 3;
+
+      if (!wrapRect || !innerRect) {
+        this.setData({
+          showCategoryMore: fallbackVisible,
+          categoryHasOverflow: fallbackVisible
+        });
+        return;
+      }
+
+      const wrapWidth = wrapRect.width || 0;
+      const innerWidth = Math.max(0, (innerRect.width || 0) - 32);
+      const hasOverflow = innerWidth > wrapWidth + 4;
+      const maxScrollLeft = Math.max(0, innerWidth - wrapWidth);
+      const hasMoreOnRight = hasOverflow && this.data.categoryScrollLeft < maxScrollLeft - 4;
+
+      this.setData({
+        categoryHasOverflow: hasOverflow,
+        categoryWrapWidth: wrapWidth,
+        categoryScrollWidth: innerWidth,
+        showCategoryMore: hasMoreOnRight
+      });
+    });
+  },
+
+  updateCategoryMoreVisibility(scrollLeft = this.data.categoryScrollLeft, scrollWidth = this.data.categoryScrollWidth) {
+    const wrapWidth = this.data.categoryWrapWidth || 0;
+    const fullWidth = Math.max(0, (scrollWidth || this.data.categoryScrollWidth || 0) - 32);
+    const maxScrollLeft = Math.max(0, fullWidth - wrapWidth);
+    const hasOverflow = Boolean(wrapWidth && fullWidth > wrapWidth + 4);
+
+    this.setData({
+      categoryScrollLeft: Math.max(0, scrollLeft),
+      categoryScrollWidth: fullWidth,
+      categoryHasOverflow: hasOverflow,
+      showCategoryMore: hasOverflow && scrollLeft < maxScrollLeft - 4
+    });
+  },
+
+  onCategoryTabsScroll(event) {
+    const detail = event.detail || {};
+    this.updateCategoryMoreVisibility(
+      Number(detail.scrollLeft) || 0,
+      Number(detail.scrollWidth) || this.data.categoryScrollWidth
+    );
   },
 
   syncTabBar() {
@@ -338,13 +452,82 @@ Page(withPageShare({
   },
 
   decorateDoc(doc) {
+    const docCovers = read(KEYS.DOC_COVERS, {}) || {};
+    const cachedCover = docCovers[doc.id] || null;
+    const decoratedDoc = buildSearchableDoc(doc);
+
+    if (cachedCover && cachedCover.coverFileId && cachedCover.coverUrl) {
+      decoratedDoc.coverFileId = cachedCover.coverFileId;
+      decoratedDoc.coverUrl = cachedCover.coverUrl;
+    }
+
     return {
-      ...buildSearchableDoc(doc),
+      ...decoratedDoc,
       createdLabel: formatDate(doc.createdAt),
       updatedLabel: formatDate(doc.updatedAt),
       selected: false,
       swipeOffset: 0
     };
+  },
+
+  async hydrateDocCovers(docs = []) {
+    const cachedCoverUrlMap = read(KEYS.COVER_URLS, {}) || {};
+    const cachedDocCoverMap = read(KEYS.DOC_COVERS, {}) || {};
+    const previousCoverUrlMap = { ...cachedCoverUrlMap };
+    Object.keys(cachedDocCoverMap).forEach((docId) => {
+      const cachedCover = cachedDocCoverMap[docId];
+      if (cachedCover && cachedCover.coverFileId && cachedCover.coverUrl) {
+        previousCoverUrlMap[cachedCover.coverFileId] = cachedCover.coverUrl;
+      }
+    });
+    (this.data.allDocs || []).concat(this.data.docs || []).forEach((doc) => {
+      if (doc && doc.coverFileId && doc.coverUrl) {
+        previousCoverUrlMap[doc.coverFileId] = doc.coverUrl;
+      }
+    });
+
+    const pendingFileIds = Array.from(new Set(
+      docs
+        .map((doc) => doc.coverFileId)
+        .filter(Boolean)
+    ));
+
+    if (!pendingFileIds.length || !wx.cloud || typeof wx.cloud.getTempFileURL !== 'function') {
+      return docs.map((doc) => ({
+        ...doc,
+        coverUrl: doc.coverFileId ? (previousCoverUrlMap[doc.coverFileId] || doc.coverUrl || '') : ''
+      }));
+    }
+
+    try {
+      const result = await wx.cloud.getTempFileURL({
+        fileList: pendingFileIds
+      });
+      const urlMap = {};
+
+      (result.fileList || []).forEach((file) => {
+        if (file && file.fileID && file.tempFileURL) {
+          urlMap[file.fileID] = file.tempFileURL;
+        }
+      });
+      write(KEYS.COVER_URLS, {
+        ...cachedCoverUrlMap,
+        ...urlMap
+      });
+
+      return docs.map((doc) => ({
+        ...doc,
+        coverUrl: doc.coverFileId
+          ? (urlMap[doc.coverFileId] || previousCoverUrlMap[doc.coverFileId] || doc.coverUrl || '')
+          : ''
+      }));
+    } catch (error) {
+      console.error('hydrateDocCovers failed', error);
+      return docs.map((doc) => ({
+        ...doc,
+        coverUrl: doc.coverFileId ? (previousCoverUrlMap[doc.coverFileId] || doc.coverUrl || '') : ''
+      }));
+    }
   },
 
   syncDocSelection(selectedIds = this.data.selectedIds, docs = this.data.docs) {
@@ -367,9 +550,21 @@ Page(withPageShare({
     };
   },
 
-  getVisibleDocs(allDocs = this.data.allDocs, keyword = this.data.searchKeyword, selectedIds = this.data.selectedIds) {
+  getVisibleDocs(
+    allDocs = this.data.allDocs,
+    keyword = this.data.searchKeyword,
+    selectedIds = this.data.selectedIds,
+    selectedCategoryId = this.data.selectedCategoryId,
+    categories = this.data.categories
+  ) {
     const normalizedKeyword = normalizeKeyword(keyword);
-    const baseDocs = this.syncDocSelection(selectedIds, allDocs);
+    const categoryId = selectedCategoryId || DEFAULT_CATEGORY_ID;
+    const knownCategoryIds = new Set((categories || []).map((category) => category.id));
+    const categoryDocs = allDocs.filter((doc) => {
+      const docCategoryId = knownCategoryIds.has(doc.categoryId) ? doc.categoryId : DEFAULT_CATEGORY_ID;
+      return docCategoryId === categoryId;
+    });
+    const baseDocs = this.syncDocSelection(selectedIds, categoryDocs);
 
     if (!normalizedKeyword) {
       return baseDocs.map((doc) => ({
@@ -400,7 +595,7 @@ Page(withPageShare({
 
     const normalizedKeyword = String(keyword || '');
     if (!normalizeKeyword(normalizedKeyword)) {
-      const docs = this.getVisibleDocs(this.data.allDocs, '', this.data.selectedIds);
+      const docs = this.getVisibleDocs(this.data.allDocs, '', this.data.selectedIds, this.data.selectedCategoryId);
       this.setData({
         searchLoading: false,
         docs,
@@ -412,7 +607,7 @@ Page(withPageShare({
     this.setData({ searchLoading: true });
 
     this.searchTimer = setTimeout(() => {
-      const docs = this.getVisibleDocs(this.data.allDocs, normalizedKeyword, this.data.selectedIds);
+      const docs = this.getVisibleDocs(this.data.allDocs, normalizedKeyword, this.data.selectedIds, this.data.selectedCategoryId);
       this.searchTimer = null;
       this.setData({
         searchLoading: false,
@@ -434,7 +629,7 @@ Page(withPageShare({
       this.searchTimer = null;
     }
 
-    const docs = this.getVisibleDocs(this.data.allDocs, '', this.data.selectedIds);
+    const docs = this.getVisibleDocs(this.data.allDocs, '', this.data.selectedIds, this.data.selectedCategoryId);
     this.setData({
       searchKeyword: '',
       searchLoading: false,
@@ -451,6 +646,56 @@ Page(withPageShare({
     wx.navigateTo({
       url: '/pages/editor/index'
     });
+  },
+
+  switchCategory(event) {
+    const { id } = event.currentTarget.dataset;
+    this.applyCategory(id);
+  },
+
+  applyCategory(id) {
+    if (!id || id === this.data.selectedCategoryId) {
+      if (this.data.categoryChooserVisible) {
+        this.setData({ categoryChooserVisible: false });
+      }
+      return;
+    }
+
+    const lastCategory = this.data.categories[this.data.categories.length - 1] || null;
+    const isLastCategory = Boolean(lastCategory && lastCategory.id === id);
+    const docs = this.getVisibleDocs(this.data.allDocs, this.data.searchKeyword, this.data.selectedIds, id);
+    this.setData({
+      selectedCategoryId: id,
+      categoryChooserVisible: false,
+      categoryScrollIntoView: isLastCategory ? '' : `category-tab-${id}`,
+      categoryScrollTargetLeft: isLastCategory ? 99999 : this.data.categoryScrollLeft,
+      showCategoryMore: isLastCategory ? false : this.data.showCategoryMore,
+      docs,
+      swipeId: '',
+      ...this.getBatchSelectionState(docs, this.data.selectedIds)
+    }, () => {
+      setTimeout(() => {
+        this.syncCategoryMoreVisibility();
+      }, 120);
+    });
+  },
+
+  openCategoryChooser() {
+    this.closeSwipe();
+    this.setData({
+      categoryChooserVisible: true
+    });
+  },
+
+  closeCategoryChooser() {
+    this.setData({
+      categoryChooserVisible: false
+    });
+  },
+
+  chooseCategoryFromSheet(event) {
+    const { id } = event.currentTarget.dataset;
+    this.applyCategory(id);
   },
 
   openDoc(event) {
@@ -519,7 +764,7 @@ Page(withPageShare({
     }
 
     const nextSelectedIds = Array.from(selectedSet);
-    const docs = this.getVisibleDocs(this.data.allDocs, this.data.searchKeyword, nextSelectedIds);
+    const docs = this.getVisibleDocs(this.data.allDocs, this.data.searchKeyword, nextSelectedIds, this.data.selectedCategoryId);
 
     this.setData({
       selectedIds: nextSelectedIds,
@@ -542,7 +787,7 @@ Page(withPageShare({
     }
 
     const nextSelectedIds = Array.from(selectedSet);
-    const docs = this.getVisibleDocs(this.data.allDocs, this.data.searchKeyword, nextSelectedIds);
+    const docs = this.getVisibleDocs(this.data.allDocs, this.data.searchKeyword, nextSelectedIds, this.data.selectedCategoryId);
     this.setData({
       selectedIds: nextSelectedIds,
       docs,

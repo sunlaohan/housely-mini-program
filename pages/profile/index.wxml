@@ -75,7 +75,7 @@
       </view>
 
       <view class="feedback-sheet__footer">
-        <app-button text="确定" variant="dark" width-mode="full" loading="{{feedbackSubmitting}}" disabled="{{feedbackSubmitting}}" bind:press="submitFeedbackForm" />
+        <app-button text="确定" variant="dark" width-mode="full" disabled="{{feedbackSubmitting}}" bind:press="submitFeedbackForm" />
       </view>
     </view>
   </bottom-sheet>
