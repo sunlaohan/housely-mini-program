@@ -1265,6 +1265,16 @@ Page(withPageShare({
         return;
       }
 
+      if (error && error.code === 'CONTENT_CHECK_FAILED') {
+        console.warn('content safety check failed', error.result || error.originalError || error);
+        wx.showModal({
+          title: '保存失败',
+          content: error.message || '内容安全校验失败，请稍后再试',
+          showCancel: false
+        });
+        return;
+      }
+
       wx.showToast({ title: '保存失败，请检查数据表', icon: 'none' });
     } finally {
       this._isSaving = false;

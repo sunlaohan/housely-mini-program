@@ -17,11 +17,10 @@ async function checkDocumentContent(payload = {}) {
     }
 
     if (!data.ok) {
-      console.warn('content safety check skipped because api failed', data);
-      return {
-        ...data,
-        skipped: true
-      };
+      const error = new Error(data.message || '内容安全校验失败，请稍后再试');
+      error.code = 'CONTENT_CHECK_FAILED';
+      error.result = data;
+      throw error;
     }
 
     const error = new Error(data.message || '内容含有不合规信息，请修改后再保存');
@@ -29,16 +28,14 @@ async function checkDocumentContent(payload = {}) {
     error.result = data;
     throw error;
   } catch (error) {
-    if (error && error.code === 'CONTENT_RISKY') {
+    if (error && (error.code === 'CONTENT_RISKY' || error.code === 'CONTENT_CHECK_FAILED')) {
       throw error;
     }
 
-    console.warn('content safety check skipped because cloud call failed', error);
-    return {
-      ok: false,
-      safe: false,
-      skipped: true
-    };
+    const nextError = new Error('内容安全校验失败，请稍后再试');
+    nextError.code = 'CONTENT_CHECK_FAILED';
+    nextError.originalError = error;
+    throw nextError;
   }
 }
 

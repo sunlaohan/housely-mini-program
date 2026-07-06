@@ -53,6 +53,19 @@ function isRiskyResult(result) {
   return suggest && suggest !== 'pass';
 }
 
+function isOpenApiFailure(result) {
+  if (!result) {
+    return false;
+  }
+
+  const errCode = Number(result.errCode || result.errcode || 0);
+  return errCode !== 0 && errCode !== RISKY_ERR_CODE;
+}
+
+function getResultDebugMessage(result) {
+  return String(result && (result.errMsg || result.errmsg || '') || '').trim();
+}
+
 function getSafeMessage(error) {
   const message = String(error && (error.errMsg || error.message) || '').trim();
 
@@ -167,6 +180,7 @@ async function checkMedia(event) {
   const wxContext = cloud.getWXContext();
   const openid = wxContext.OPENID || event.openid || '';
   const urlMap = await getTempUrlMap(mediaFiles.map((file) => file.fileId));
+  const traceIds = [];
 
   for (let index = 0; index < mediaFiles.length; index += 1) {
     const file = mediaFiles[index];
@@ -182,13 +196,24 @@ async function checkMedia(event) {
     }
 
     try {
-      await cloud.openapi.security.mediaCheckAsync({
+      const asyncResult = await cloud.openapi.security.mediaCheckAsync({
         mediaUrl,
         mediaType: IMAGE_MEDIA_TYPE,
         version: 2,
         scene: Number(event.scene || DEFAULT_SCENE) || DEFAULT_SCENE,
         openid
       });
+
+      if (isOpenApiFailure(asyncResult)) {
+        return {
+          ok: false,
+          safe: false,
+          message: '图片安全校验失败，请稍后再试',
+          debugMessage: getResultDebugMessage(asyncResult)
+        };
+      }
+
+      traceIds.push(asyncResult && asyncResult.traceId || asyncResult && asyncResult.trace_id || '');
     } catch (error) {
       console.error('mediaCheckAsync failed', {
         index,
@@ -206,7 +231,8 @@ async function checkMedia(event) {
 
   return {
     ok: true,
-    safe: true
+    safe: true,
+    traceIds: traceIds.filter(Boolean)
   };
 }
 

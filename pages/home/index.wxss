@@ -316,7 +316,7 @@ page {
   position: relative;
   width: 100%;
   flex-shrink: 0;
-  margin: 4rpx 0 12rpx;
+  margin: 8rpx 0;
 }
 
 .home-category-tabs {

@@ -133,7 +133,7 @@ module.exports = {
 
 ## 内容安全配置
 
-“添加 / 编辑”文档保存前会调用 [`cloudfunctions/contentSafety`](./cloudfunctions/contentSafety/index.js)，对标题、摘要、正文执行 `security.msgSecCheck`，并对上传图片提交 `security.mediaCheckAsync`。若检测发现风险内容，小程序只提示用户修改，不会保存到 `documents` 集合。
+“添加 / 编辑”文档保存前会调用 [`cloudfunctions/contentSafety`](./cloudfunctions/contentSafety/index.js)，对标题、摘要、正文执行 `security.msgSecCheck`，并对上传图片提交 `security.mediaCheckAsync` 做多媒体异步安全识别。若内容安全 API 调用失败，小程序会提示用户稍后重试，不会保存到 `documents` 集合。
 
 首次启用或修改后，请在微信开发者工具中右键 `cloudfunctions/contentSafety`，选择“上传并部署：云端安装依赖”。该云函数的 [`config.json`](./cloudfunctions/contentSafety/config.json) 已声明所需的内容安全 OpenAPI 权限。
 
