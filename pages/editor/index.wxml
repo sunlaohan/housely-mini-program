@@ -121,31 +121,16 @@
       <view class="category-sheet__header">
         <view class="category-sheet__close" bindtap="closeCategoryPanel">×</view>
         <view class="category-sheet__title">选择分类</view>
-        <view class="category-sheet__add" bindtap="showNewCategoryInput">新增</view>
+        <view class="category-sheet__add" bindtap="openNewCategoryDialog">新增</view>
       </view>
 
       <scroll-view class="category-sheet__scroll" scroll-y enhanced show-scrollbar="{{false}}">
         <view class="category-sheet__notice">
           <image class="category-sheet__notice-icon" src="../../assets/auth/info-o.svg" mode="aspectFit" />
-          <text>左滑可删除分类，默认分类不支持编辑和删除</text>
+          <text>左滑可编辑/删除分类，默认分类不支持</text>
         </view>
 
-        <view class="category-sheet__list" bindtap="saveNewCategoryDraft">
-          <view wx:if="{{newCategoryDraftVisible}}" class="category-row category-row--draft" catchtap="noop">
-            <input
-              class="category-row__input"
-              value="{{newCategoryDraftName}}"
-              placeholder="输入分类名称"
-              placeholder-class="category-row__placeholder"
-              focus="{{newCategoryDraftFocus}}"
-              maxlength="17"
-              confirm-type="done"
-              bindinput="onNewCategoryInput"
-              bindblur="saveNewCategoryDraft"
-              bindconfirm="saveNewCategoryDraft"
-            />
-          </view>
-
+        <view class="category-sheet__list">
           <block wx:for="{{categories}}" wx:key="id">
             <view
               class="category-swipe-shell {{item.swipeOffset ? 'category-swipe-shell--open' : ''}}"
@@ -156,6 +141,7 @@
               bindtouchcancel="onCategoryTouchEnd"
             >
               <view wx:if="{{!item.isDefault}}" class="category-actions">
+                <view class="category-action category-action--edit" data-id="{{item.id}}" catchtap="openCategoryEditDialog">编辑</view>
                 <view class="category-action category-action--delete" data-id="{{item.id}}" catchtap="confirmDeleteCategory">删除</view>
               </view>
 
@@ -165,25 +151,8 @@
                 data-id="{{item.id}}"
                 bindtap="selectCategory"
               >
-                <input
-                  wx:if="{{item.editing}}"
-                  class="category-row__input"
-                  value="{{item.draftName}}"
-                  focus="{{item.focus}}"
-                  data-id="{{item.id}}"
-                  maxlength="17"
-                  confirm-type="done"
-                  catchtap="noop"
-                  bindinput="onCategoryEditInput"
-                  bindblur="saveCategoryEdit"
-                  bindconfirm="saveCategoryEdit"
-                />
-                <view wx:elif="{{!item.isDefault}}" class="category-row__edit-hotspot" data-id="{{item.id}}" catchtap="startEditCategory">
-                  <text class="category-row__name">{{item.name}}</text>
-                  <image class="category-row__edit-icon" src="../../assets/auth/edit.svg" mode="aspectFit" />
-                </view>
-                <text wx:else class="category-row__name">{{item.name}}</text>
-                <view wx:if="{{selectedCategoryId === item.id && !item.editing}}" class="category-row__check"></view>
+                <text class="category-row__name">{{item.name}}</text>
+                <view wx:if="{{selectedCategoryId === item.id}}" class="category-row__check"></view>
               </view>
             </view>
           </block>
@@ -191,4 +160,27 @@
       </scroll-view>
     </view>
   </bottom-sheet>
+
+  <view wx:if="{{categoryEditDialogVisible}}" class="category-edit-dialog" catchtouchmove="noop">
+    <view class="category-edit-dialog__mask" catchtap="closeCategoryEditDialog"></view>
+    <view class="category-edit-dialog__panel" catchtap="noop">
+      <view class="category-edit-dialog__content">
+        <view class="category-edit-dialog__title">{{categoryEditId ? '编辑分类' : '新增分类'}}</view>
+        <view class="category-edit-dialog__tip">分类最多支持16个字符超出无法输入</view>
+        <input
+          class="category-edit-dialog__input"
+          value="{{categoryEditName}}"
+          focus="{{categoryEditFocus}}"
+          maxlength="16"
+          confirm-type="done"
+          bindinput="onCategoryDialogInput"
+          bindconfirm="confirmCategoryEdit"
+        />
+      </view>
+      <view class="category-edit-dialog__actions">
+        <view class="category-edit-dialog__button category-edit-dialog__button--cancel" catchtap="closeCategoryEditDialog">取消</view>
+        <view class="category-edit-dialog__button category-edit-dialog__button--confirm" catchtap="confirmCategoryEdit">确定</view>
+      </view>
+    </view>
+  </view>
 </view>

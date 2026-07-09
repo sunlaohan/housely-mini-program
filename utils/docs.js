@@ -302,6 +302,35 @@ async function updateDocument(user, docId, patch) {
   };
 }
 
+async function moveDocumentCategory(user, docId, categoryId, categoryName) {
+  const doc = await getDocumentById(user, docId);
+  if (!doc) {
+    return null;
+  }
+
+  const payload = {
+    categoryId: categoryId || 'default',
+    categoryName: categoryName || '默认分类',
+    updatedAt: new Date()
+  };
+  await docsCollection().doc(docId).update({ data: payload });
+  return {
+    ...doc,
+    ...payload
+  };
+}
+
+async function moveDocumentsCategory(user, docIds, categoryId, categoryName) {
+  const ids = Array.from(new Set((Array.isArray(docIds) ? docIds : []).filter(Boolean)));
+  if (!ids.length) {
+    return [];
+  }
+
+  return Promise.all(ids.map((docId) =>
+    moveDocumentCategory(user, docId, categoryId, categoryName)
+  ));
+}
+
 async function deleteDocument(user, docId) {
   const doc = await getDocumentById(user, docId);
   if (!doc) {
@@ -330,5 +359,7 @@ module.exports = {
   deleteDocuments,
   getDocumentById,
   getDocuments,
+  moveDocumentCategory,
+  moveDocumentsCategory,
   updateDocument
 };

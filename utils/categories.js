@@ -49,7 +49,7 @@ function normalizeCategory(category) {
 
   return {
     id,
-    cloudId: String(category && category._id || '').trim(),
+    cloudId: String(category && (category._id || category.cloudId) || '').trim(),
     name,
     ownerKey: String(category && (category.ownerKey || category.username || category.userId) || '').trim(),
     userId: String(category && category.userId || '').trim(),
@@ -156,12 +156,16 @@ async function queryCloudCategories(user) {
   return Array.from(categoryMap.values());
 }
 
+async function refreshCategoriesFromCloud(user) {
+  const cloudCategories = await queryCloudCategories(user);
+  return saveLocalCategories(user, cloudCategories);
+}
+
 async function getCategories(user) {
   const localCategories = getLocalCategories(user);
 
   try {
-    const cloudCategories = await queryCloudCategories(user);
-    return saveLocalCategories(user, cloudCategories);
+    return await refreshCategoriesFromCloud(user);
   } catch (error) {
     if (isMissingCollectionError(error)) {
       return saveLocalCategories(user, []);
@@ -200,11 +204,8 @@ async function createCategory(user, name) {
   };
 
   try {
-    const result = await categoriesCollection().add({ data: payload });
-    return saveLocalCategories(user, categories.concat(normalizeCategory({
-      _id: result._id,
-      ...payload
-    })));
+    await categoriesCollection().add({ data: payload });
+    return refreshCategoriesFromCloud(user);
   } catch (error) {
     throw error;
   }
@@ -236,11 +237,7 @@ async function updateCategory(user, categoryId, name) {
     throw error;
   }
 
-  return saveLocalCategories(user, categories.map((item) =>
-    item.id === categoryId
-      ? { ...item, name: trimmedName, updatedAt: new Date() }
-      : item
-  ));
+  return refreshCategoriesFromCloud(user);
 }
 
 async function deleteCategory(user, categoryId) {
@@ -259,7 +256,7 @@ async function deleteCategory(user, categoryId) {
     throw error;
   }
 
-  return saveLocalCategories(user, categories.filter((category) => category.id !== categoryId));
+  return refreshCategoriesFromCloud(user);
 }
 
 async function getCategoryById(user, categoryId) {

@@ -15,6 +15,7 @@
     <view class="profile-section">
       <view class="profile-card profile-card--list">
         <list-cell title="关于家物小记" show-divider="{{true}}" bind:press="showAbout" />
+        <list-cell title="隐私与数据安全" show-divider="{{true}}" bind:press="showPrivacy" />
         <list-cell title="意见反馈" show-divider="{{true}}" bind:press="showFeedback" />
         <list-cell title="注销账号" danger="{{true}}" show-divider="{{false}}" bind:press="removeAccount" />
       </view>
@@ -162,6 +163,24 @@
 
         <view class="about-text">
           <text>亲爱的朋友，你是否在生活中有过这样的场景：\n\n“诶？我们家的用电户号是多少来着？我记得之前办理开户时那个单子上有，但那个单子放哪儿去了？”\n\n“诶？我们家那个车位产权证号是多少来着？还有车位详细产权地址是什么？办理这个业务要咋这么多信息？我现在上哪儿找去？”\n\n“这里要填车架号，车架号不行驶证上才有么？但行驶证在家里咋弄呢？”\n\n“这热水器出问题了，报错E1是什么意思呀？之前热水器的说明书放哪儿去了？”\n\n“这一抽屉的说明书太碍事儿了，平时又不用，要用了又要找很久，找到还要翻阅很久，太麻烦了”\n\n“诶？我们家毛毛当时从宠物店抱回来时那个出生证呢？我想看下他出生日期”\n\n............\n\n现在有了【家物小记】这些问题都能轻松解决，你只需要把他们拍下来，识别一下，一个图文并茂的专属记忆就存下来了。\n你可以随时查看，还能通过搜索在记忆列表、记忆详情中快速找到你想要的内容～～</text>
+        </view>
+      </scroll-view>
+    </view>
+  </view>
+
+  <view class="about-mask {{privacyVisible ? 'about-mask--show' : ''}}" wx:if="{{privacyShow}}" bindtap="hidePrivacy">
+    <view class="about-panel {{privacyVisible ? 'about-panel--show' : ''}}" catchtap="noop">
+      <view class="about-navbar">
+        <view class="about-navbar__left" bindtap="hidePrivacy">
+          <image class="about-close-icon" src="../../assets/auth/cross.svg" mode="aspectFit" />
+        </view>
+        <view class="about-navbar__title">隐私与数据安全</view>
+        <view class="about-navbar__right"></view>
+      </view>
+
+      <scroll-view class="about-scroll" scroll-y enhanced show-scrollbar="{{false}}">
+        <view class="about-text privacy-text">
+          <text>我们理解，你保存的家庭资料可能包含重要且私密的信息。家物小记会尽量减少不必要的数据收集，并把数据控制权交还给你。\n\n数据保存在哪里\n\n你主动创建的记忆、分类、识别结果及上传的图片，会保存在本小程序使用的微信云开发环境中，用于向你提供跨设备查看、搜索、编辑和管理服务。\n\n我们如何使用数据\n\n这些数据仅用于实现家物小记的核心功能，例如图片文字识别、内容安全校验、记忆保存与搜索。我们不会主动公开你的内容，也不会将其出售或用于广告画像。\n\n谁可以访问你的数据\n\n只有当前登录账号可以在小程序内访问和查看该账号保存的数据。其他普通用户无权访问、查看或搜索你的记忆、图片及识别内容，也不会在任何公开页面看到这些数据。\n\n我们如何保护数据\n\n数据请求通过微信小程序及微信云开发提供的安全链路传输。小程序不会在页面中展示其他用户的数据，也不会要求你提供与功能无关的敏感权限。请妥善保管自己的微信账号，并避免上传银行卡密码、支付密码等无需保存的高度敏感信息。\n\n你可以管理和删除数据\n\n你可以随时编辑或删除单条记忆。删除记忆时，与该记忆关联的云端记录和文件会一并清理；注销账号时，系统会清理该账号关联的记忆、分类、识别任务及上传文件。删除后的数据无法恢复，请操作前仔细确认。\n\n我们坚持的原则\n\n只收集实现功能所必需的信息；只在提供服务所需的范围内使用；不主动向无关第三方共享。若你对隐私或数据处理有疑问，可以通过“意见反馈”联系我们。</text>
         </view>
       </scroll-view>
     </view>

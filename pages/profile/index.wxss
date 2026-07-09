@@ -457,3 +457,8 @@ page {
   line-height: 1.57;
   color: #626C78;
 }
+
+.privacy-text {
+  padding-top: 0;
+  white-space: pre-wrap;
+}

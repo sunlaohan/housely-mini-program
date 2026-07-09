@@ -220,14 +220,16 @@ Page(withPageShare({
     selectedCategoryId: DEFAULT_CATEGORY_ID,
     selectedCategoryName: '默认分类',
     categoryPanelVisible: false,
-    newCategoryDraftVisible: false,
-    newCategoryDraftName: '',
-    newCategoryDraftFocus: false,
+    categoryEditDialogVisible: false,
+    categoryEditId: '',
+    categoryEditName: '',
+    categoryEditFocus: false,
+    categoryEditSaving: false,
     categorySwipeId: '',
     categoryTouchStartX: 0,
     categoryTouchMoved: false,
     categorySwipeThreshold: 28,
-    categorySwipeMaxOffset: 88,
+    categorySwipeMaxOffset: 176,
     name: '',
     description: '',
     markdown: '',
@@ -275,7 +277,6 @@ Page(withPageShare({
   },
 
   async openCategoryPanel() {
-    await this.refreshCategories();
     this.setData({
       categoryPanelVisible: true,
       categorySwipeId: '',
@@ -286,43 +287,26 @@ Page(withPageShare({
         focus: false
       }))
     });
+
+    wx.showLoading({ title: '加载中', mask: true });
+    try {
+      await this.refreshCategories();
+    } finally {
+      wx.hideLoading();
+    }
   },
 
-  async closeCategoryPanel() {
-    let categories = this.data.categories;
-    const draftName = String(this.data.newCategoryDraftName || '').trim();
-    let savedDraft = false;
-    if (this.data.newCategoryDraftVisible && draftName) {
-      try {
-        categories = await createCategory(this.data.currentUser, draftName);
-        savedDraft = true;
-      } catch (error) {
-        wx.showToast({ title: '分类保存失败，请检查云端集合', icon: 'none' });
-        return;
-      }
-    }
-
-    const createdCategory = savedDraft ? (getCategoryByNameFromList(categories, draftName) || getDefaultCategory()) : null;
-
+  closeCategoryPanel() {
     this.setData({
       categoryPanelVisible: false,
-      selectedCategoryId: createdCategory ? createdCategory.id : this.data.selectedCategoryId,
-      selectedCategoryName: createdCategory ? createdCategory.name : this.data.selectedCategoryName,
-      categories: categories.map((category) => ({
+      categories: this.data.categories.map((category) => ({
         ...category,
         swipeOffset: 0,
         editing: false,
         focus: false
       })),
-      categorySwipeId: '',
-      newCategoryDraftVisible: false,
-      newCategoryDraftName: '',
-      newCategoryDraftFocus: false
+      categorySwipeId: ''
     });
-
-    if (savedDraft) {
-      wx.showToast({ title: '保存成功', icon: 'success' });
-    }
   },
 
   selectCategory(event) {
@@ -344,105 +328,27 @@ Page(withPageShare({
     });
   },
 
-  showNewCategoryInput() {
+  openNewCategoryDialog() {
     this.setData({
-      newCategoryDraftVisible: true,
-      newCategoryDraftName: '',
-      newCategoryDraftFocus: true,
       categorySwipeId: '',
       categories: this.data.categories.map((category) => ({
         ...category,
         swipeOffset: 0
-      }))
-    });
-  },
-
-  onNewCategoryInput(event) {
-    const value = event.detail.value || '';
-    const limitedValue = limitCategoryName(value);
-    if (limitedValue !== value) {
-      this.showCategoryNameLimitToast();
-    }
-
-    this.setData({
-      newCategoryDraftName: limitedValue
-    });
-    return limitedValue;
-  },
-
-  async saveNewCategoryDraft(options = {}) {
-    const silent = Boolean(options && options.silent);
-    const name = String(this.data.newCategoryDraftName || '').trim();
-
-    if (!this.data.newCategoryDraftVisible) {
-      return;
-    }
-
-    if (!name) {
-      this.setData({
-        newCategoryDraftVisible: false,
-        newCategoryDraftName: '',
-        newCategoryDraftFocus: false
-      });
-      return;
-    }
-
-    let categories = this.data.categories;
-    try {
-      categories = await createCategory(this.data.currentUser, name);
-    } catch (error) {
-      wx.showToast({ title: '分类保存失败，请检查云端集合', icon: 'none' });
-      return;
-    }
-
-    const createdCategory = getCategoryByNameFromList(categories, name) || getDefaultCategory();
-
-    this.setData({
-      categories,
-      selectedCategoryId: createdCategory.id,
-      selectedCategoryName: createdCategory.name,
-      newCategoryDraftVisible: false,
-      newCategoryDraftName: '',
-      newCategoryDraftFocus: false
+      })),
+      categoryEditDialogVisible: true,
+      categoryEditId: '',
+      categoryEditName: '',
+      categoryEditFocus: false
     });
 
-    if (!silent) {
-      wx.showToast({ title: '保存成功', icon: 'success' });
-    }
+    setTimeout(() => {
+      if (this.data.categoryEditDialogVisible) {
+        this.setData({ categoryEditFocus: true });
+      }
+    }, 80);
   },
 
-  onCategoryEditInput(event) {
-    const { id } = event.currentTarget.dataset;
-    const value = event.detail.value || '';
-    const limitedValue = limitCategoryName(value);
-    if (limitedValue !== value) {
-      this.showCategoryNameLimitToast();
-    }
-
-    this.setData({
-      categories: this.data.categories.map((category) =>
-        category.id === id
-          ? { ...category, draftName: limitedValue }
-          : category
-      )
-    });
-    return limitedValue;
-  },
-
-  showCategoryNameLimitToast() {
-    const now = Date.now();
-    if (this.categoryNameLimitToastTime && now - this.categoryNameLimitToastTime < 1200) {
-      return;
-    }
-
-    this.categoryNameLimitToastTime = now;
-    wx.showToast({
-      title: '仅支持输入16个字符',
-      icon: 'none'
-    });
-  },
-
-  startEditCategory(event) {
+  openCategoryEditDialog(event) {
     const { id } = event.currentTarget.dataset;
     const category = this.data.categories.find((item) => item.id === id);
     if (!category || category.isDefault) {
@@ -453,52 +359,93 @@ Page(withPageShare({
       categorySwipeId: '',
       categories: this.data.categories.map((category) => ({
         ...category,
-        swipeOffset: 0,
-        editing: category.id === id,
-        focus: category.id === id,
-        draftName: category.name
-      }))
+        swipeOffset: 0
+      })),
+      categoryEditDialogVisible: true,
+      categoryEditId: id,
+      categoryEditName: category.name,
+      categoryEditFocus: false
+    });
+
+    setTimeout(() => {
+      if (this.data.categoryEditDialogVisible) {
+        this.setData({ categoryEditFocus: true });
+      }
+    }, 80);
+  },
+
+  closeCategoryEditDialog() {
+    if (this.data.categoryEditSaving) {
+      return;
+    }
+
+    this.setData({
+      categoryEditDialogVisible: false,
+      categoryEditId: '',
+      categoryEditName: '',
+      categoryEditFocus: false
     });
   },
 
-  async saveCategoryEdit(event) {
-    const { id } = event.currentTarget.dataset;
-    const category = this.data.categories.find((item) => item.id === id);
-    const draftName = String(category && category.draftName || '').trim();
+  onCategoryDialogInput(event) {
+    const value = event.detail.value || '';
+    const limitedValue = limitCategoryName(value);
+    this.setData({ categoryEditName: limitedValue });
+    return limitedValue;
+  },
 
-    if (!category || !category.editing) {
+  async confirmCategoryEdit() {
+    const id = this.data.categoryEditId;
+    const name = String(this.data.categoryEditName || '').trim();
+    if (!name || this.data.categoryEditSaving) {
+      if (!name) {
+        wx.showToast({ title: '请输入分类名称', icon: 'none' });
+      }
       return;
     }
 
-    if (category.isDefault || !draftName) {
-      this.setData({
-        categories: this.data.categories.map((item) => ({
-          ...item,
-          editing: false,
-          focus: false,
-          draftName: item.name
-        }))
-      });
+    const duplicateCategory = this.data.categories.find((category) =>
+      category.id !== id && category.name === name
+    );
+    if (duplicateCategory) {
+      wx.showToast({ title: '分类名称已存在', icon: 'none' });
       return;
     }
 
-    let categories = this.data.categories;
+    this.setData({ categoryEditSaving: true, categoryEditFocus: false });
+    wx.showLoading({ title: '保存中', mask: true });
     try {
-      categories = await updateCategory(this.data.currentUser, id, draftName);
+      const categories = id
+        ? await updateCategory(this.data.currentUser, id, name)
+        : await createCategory(this.data.currentUser, name);
+      const createdCategory = id ? null : getCategoryByNameFromList(categories, name);
+      const selectedCategoryId = createdCategory
+        ? createdCategory.id
+        : this.data.selectedCategoryId;
+      const selectedCategoryName = createdCategory
+        ? createdCategory.name
+        : (id === this.data.selectedCategoryId
+          ? getCategoryNameFromList(categories, id)
+          : this.data.selectedCategoryName);
+
+      this.setData({
+        categories,
+        selectedCategoryId,
+        selectedCategoryName,
+        categoryEditDialogVisible: false,
+        categoryEditId: '',
+        categoryEditName: '',
+        categoryEditSaving: false
+      });
+      wx.hideLoading();
+      setTimeout(() => {
+        wx.showToast({ title: '保存成功', icon: 'success' });
+      }, 80);
     } catch (error) {
+      this.setData({ categoryEditSaving: false });
+      wx.hideLoading();
       wx.showToast({ title: '分类保存失败，请检查云端集合', icon: 'none' });
-      return;
     }
-
-    const selectedCategoryName = id === this.data.selectedCategoryId
-      ? getCategoryNameFromList(categories, id)
-      : this.data.selectedCategoryName;
-
-    this.setData({
-      categories,
-      selectedCategoryName
-    });
-    wx.showToast({ title: '保存成功', icon: 'success' });
   },
 
   confirmDeleteCategory(event) {
@@ -509,33 +456,37 @@ Page(withPageShare({
     }
 
     wx.showModal({
-      title: '删除分类',
-      content: '删除后该分类将不再显示，确定删除吗？',
+      title: '删除提示',
+      content: '被删除分类下如果还有记忆会自动移动到【默认分类】，是否确认删除',
+      confirmText: '删除',
+      cancelText: '取消',
       confirmColor: '#f55047',
       success: async (res) => {
         if (!res.confirm) {
           return;
         }
 
-        let categories = this.data.categories;
+        wx.showLoading({ title: '删除中', mask: true });
         try {
-          categories = await deleteCategory(this.data.currentUser, id);
+          const categories = await deleteCategory(this.data.currentUser, id);
+          const selectedCategory = id === this.data.selectedCategoryId
+            ? getDefaultCategory()
+            : getCategoryByIdFromList(categories, this.data.selectedCategoryId);
+
+          this.setData({
+            categories,
+            selectedCategoryId: selectedCategory.id,
+            selectedCategoryName: selectedCategory.name,
+            categorySwipeId: ''
+          });
+          wx.hideLoading();
+          setTimeout(() => {
+            wx.showToast({ title: '删除成功', icon: 'success' });
+          }, 80);
         } catch (error) {
+          wx.hideLoading();
           wx.showToast({ title: '分类删除失败，请检查云端集合', icon: 'none' });
-          return;
         }
-
-        const selectedCategory = id === this.data.selectedCategoryId
-          ? getDefaultCategory()
-          : getCategoryByIdFromList(categories, this.data.selectedCategoryId);
-
-        this.setData({
-          categories,
-          selectedCategoryId: selectedCategory.id,
-          selectedCategoryName: selectedCategory.name,
-          categorySwipeId: ''
-        });
-        wx.showToast({ title: '删除成功', icon: 'success' });
       }
     });
   },
@@ -1009,12 +960,13 @@ Page(withPageShare({
           ocrStatus: draft.ocrStatus || 'success',
           ocrMessage: '未识别到文字'
         });
-        wx.hideLoading();
-        wx.showToast({
-          title: '未识别到文字，但你可以自己随便写点',
-          icon: 'none',
-          duration: 2500
-        });
+        setTimeout(() => {
+          wx.showToast({
+            title: '未识别到文字，但你可以自己随便写点',
+            icon: 'none',
+            duration: 2000
+          });
+        }, 80);
         return;
       }
 

@@ -92,7 +92,7 @@
     </view>
   </view>
 
-  <view wx:if="{{allDocs.length && categories.length}}" class="home-category-wrap {{showCategoryMore ? 'home-category-wrap--more' : ''}}">
+  <view wx:if="{{allDocs.length && categories.length}}" class="home-category-wrap home-category-wrap--more">
     <scroll-view
       class="home-category-tabs"
       scroll-x
@@ -117,7 +117,7 @@
       </view>
     </scroll-view>
 
-    <view wx:if="{{showCategoryMore}}" class="home-category-more" catchtap="openCategoryChooser">
+    <view class="home-category-more" catchtap="openCategoryChooser">
       <image class="home-category-more__icon" src="../../assets/auth/wap-nav.svg" mode="aspectFit"></image>
     </view>
   </view>
@@ -151,8 +151,9 @@
         <view class="doc-list__group">
           <block wx:for="{{docs}}" wx:key="id">
             <view class="swipe-shell" catchtap="noop" data-id="{{item.id}}" bindtouchstart="onTouchStart" bindtouchmove="onTouchMove" bindtouchend="onTouchEnd">
-              <view class="delete-action">
-                <button class="delete-btn" data-id="{{item.id}}" bindtap="confirmDelete">删除</button>
+              <view class="doc-swipe-actions">
+                <button class="doc-swipe-btn doc-swipe-btn--move" data-id="{{item.id}}" catchtap="openMoveCategoryChooser">移动</button>
+                <button class="doc-swipe-btn doc-swipe-btn--delete" data-id="{{item.id}}" catchtap="confirmDelete">删除</button>
               </view>
 
               <view class="doc-card {{item.swipeOffset ? 'doc-card--swiped' : ''}}" style="transform: translateX(-{{item.swipeOffset || 0}}rpx);" data-id="{{item.id}}" bindtap="openDoc">
@@ -185,30 +186,73 @@
   </scroll-view>
 
   <view wx:if="{{batchMode && docs.length}}" class="batch-footer">
-    <app-button text="{{deleteSelectedText}}" variant="danger" width-mode="full" bind:press="deleteSelected" />
+    <view class="batch-footer__move {{selectedIds.length ? '' : 'batch-footer__button--disabled'}}" bindtap="openBatchMoveCategoryChooser">移动</view>
+    <view class="batch-footer__delete {{selectedIds.length ? '' : 'batch-footer__button--disabled'}}" bindtap="deleteSelected">{{deleteSelectedText}}</view>
   </view>
 
   <bottom-sheet visible="{{categoryChooserVisible}}" bind:close="closeCategoryChooser">
     <view class="home-category-sheet">
       <view class="home-category-sheet__header">
         <view class="home-category-sheet__close" bindtap="closeCategoryChooser">×</view>
-        <view class="home-category-sheet__title">选择分类</view>
+        <view class="home-category-sheet__title">{{categoryChooserMode === 'move' ? '选择分类' : '快速切换分类'}}</view>
+        <view wx:if="{{categoryChooserMode !== 'move'}}" class="home-category-sheet__add" bindtap="openHomeNewCategoryDialog">新增</view>
       </view>
 
       <scroll-view class="home-category-sheet__scroll" scroll-y enhanced show-scrollbar="{{false}}">
+        <view wx:if="{{categoryChooserMode !== 'move'}}" class="home-category-sheet__notice">
+          <image class="home-category-sheet__notice-icon" src="../../assets/auth/info-o.svg" mode="aspectFit" />
+          <text>左滑可编辑/删除分类，默认分类不支持</text>
+        </view>
         <view class="home-category-sheet__list">
           <block wx:for="{{categories}}" wx:key="id">
             <view
-              class="home-category-sheet__row {{selectedCategoryId === item.id ? 'home-category-sheet__row--selected' : ''}}"
+              class="home-category-swipe-shell {{item.swipeOffset ? 'home-category-swipe-shell--open' : ''}}"
               data-id="{{item.id}}"
-              bindtap="chooseCategoryFromSheet"
+              bindtouchstart="onHomeCategoryTouchStart"
+              bindtouchmove="onHomeCategoryTouchMove"
+              bindtouchend="onHomeCategoryTouchEnd"
+              bindtouchcancel="onHomeCategoryTouchEnd"
             >
-              <text class="home-category-sheet__name">{{item.name}}</text>
-              <view wx:if="{{selectedCategoryId === item.id}}" class="home-category-sheet__check"></view>
+              <view wx:if="{{categoryChooserMode !== 'move' && !item.isDefault}}" class="home-category-actions">
+                <view class="home-category-action home-category-action--edit" data-id="{{item.id}}" catchtap="openHomeCategoryEditDialog">编辑</view>
+                <view class="home-category-action home-category-action--delete" data-id="{{item.id}}" catchtap="confirmHomeDeleteCategory">删除</view>
+              </view>
+              <view
+                class="home-category-sheet__row {{(categoryChooserMode === 'move' ? moveCategoryId : selectedCategoryId) === item.id ? 'home-category-sheet__row--selected' : ''}}"
+                style="transform: translateX(-{{categoryChooserMode === 'move' ? 0 : (item.swipeOffset || 0)}}rpx);"
+                data-id="{{item.id}}"
+                bindtap="chooseCategoryFromSheet"
+              >
+                <text class="home-category-sheet__name">{{item.name}}</text>
+                <view wx:if="{{(categoryChooserMode === 'move' ? moveCategoryId : selectedCategoryId) === item.id}}" class="home-category-sheet__check"></view>
+              </view>
             </view>
           </block>
         </view>
       </scroll-view>
     </view>
   </bottom-sheet>
+
+  <view wx:if="{{categoryEditDialogVisible}}" class="home-category-dialog" catchtouchmove="noop">
+    <view class="home-category-dialog__mask" catchtap="closeHomeCategoryDialog"></view>
+    <view class="home-category-dialog__panel" catchtap="noop">
+      <view class="home-category-dialog__content">
+        <view class="home-category-dialog__title">{{categoryEditId ? '编辑分类' : '新增分类'}}</view>
+        <view class="home-category-dialog__tip">分类最多支持16个字符超出无法输入</view>
+        <input
+          class="home-category-dialog__input"
+          value="{{categoryEditName}}"
+          focus="{{categoryEditFocus}}"
+          maxlength="16"
+          confirm-type="done"
+          bindinput="onHomeCategoryDialogInput"
+          bindconfirm="confirmHomeCategoryDialog"
+        />
+      </view>
+      <view class="home-category-dialog__actions">
+        <view class="home-category-dialog__button home-category-dialog__button--cancel" catchtap="closeHomeCategoryDialog">取消</view>
+        <view class="home-category-dialog__button home-category-dialog__button--confirm" catchtap="confirmHomeCategoryDialog">确定</view>
+      </view>
+    </view>
+  </view>
 </view>

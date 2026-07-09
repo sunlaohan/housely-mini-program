@@ -1,15 +1,25 @@
 const { ensureAuth, formatDate } = require('../../utils/page');
-const { getDocuments, deleteDocument, deleteDocuments } = require('../../utils/docs');
+const {
+  getDocuments,
+  deleteDocument,
+  deleteDocuments,
+  moveDocumentCategory,
+  moveDocumentsCategory
+} = require('../../utils/docs');
 const { withPageShare } = require('../../utils/share');
 const { getCurrentUser } = require('../../utils/account');
 const { KEYS, read, write } = require('../../utils/storage');
 const {
   DEFAULT_CATEGORY_ID,
+  createCategory,
+  deleteCategory,
   getCategories,
   getCategoryByIdFromList,
-  getDefaultCategory
+  getDefaultCategory,
+  updateCategory
 } = require('../../utils/categories');
 
+const CATEGORY_NAME_MAX_LENGTH = 16;
 const TIMELINE_ENTRY = 'timeline';
 const TIMELINE_SCENE = 1154;
 const SHARE_HIGHLIGHTS = [
@@ -38,6 +48,11 @@ const SHARE_HIGHLIGHTS = [
     description: '常用家庭资料集中存放，搬家、报修、缴费都更顺手。'
   }
 ];
+
+function limitCategoryName(value = '') {
+  return Array.from(String(value || '')).slice(0, CATEGORY_NAME_MAX_LENGTH).join('');
+}
+
 const SHARE_SCENES = [
   '空调说明书找不到时，搜一下就能看',
   '水电燃气户号要填时，不用再翻票据',
@@ -242,6 +257,20 @@ Page(withPageShare({
     categoryWrapWidth: 0,
     categoryScrollIntoView: '',
     categoryChooserVisible: false,
+    categoryChooserMode: 'manage',
+    moveDocumentId: '',
+    moveDocumentIds: [],
+    moveCategoryId: DEFAULT_CATEGORY_ID,
+    categoryEditDialogVisible: false,
+    categoryEditId: '',
+    categoryEditName: '',
+    categoryEditFocus: false,
+    categoryEditSaving: false,
+    categorySwipeId: '',
+    categoryTouchStartX: 0,
+    categoryTouchMoved: false,
+    categorySwipeThreshold: 28,
+    categorySwipeMaxOffset: 176,
     allDocs: [],
     docs: [],
     isLoadingDocs: false,
@@ -258,7 +287,7 @@ Page(withPageShare({
     touchCurrentX: 0,
     touchMoved: false,
     swipeThreshold: 28,
-    swipeMaxOffset: 114
+    swipeMaxOffset: 228
   },
 
   onLoad(options) {
@@ -372,14 +401,14 @@ Page(withPageShare({
   syncCategoryMoreVisibility() {
     if (!this.data.allDocs.length || !this.data.categories || this.data.categories.length <= 1) {
       this.setData({
-        showCategoryMore: false,
+        showCategoryMore: Boolean(this.data.allDocs.length && this.data.categories && this.data.categories.length),
         categoryHasOverflow: false
       });
       return;
     }
 
     const query = wx.createSelectorQuery().in(this);
-    query.select('.home-category-wrap').boundingClientRect();
+    query.select('.home-category-tabs').boundingClientRect();
     query.select('.home-category-tabs__inner').boundingClientRect();
     query.exec((result) => {
       const wrapRect = result && result[0];
@@ -388,7 +417,7 @@ Page(withPageShare({
 
       if (!wrapRect || !innerRect) {
         this.setData({
-          showCategoryMore: fallbackVisible,
+          showCategoryMore: true,
           categoryHasOverflow: fallbackVisible
         });
         return;
@@ -397,14 +426,11 @@ Page(withPageShare({
       const wrapWidth = wrapRect.width || 0;
       const innerWidth = Math.max(0, (innerRect.width || 0) - 32);
       const hasOverflow = innerWidth > wrapWidth + 4;
-      const maxScrollLeft = Math.max(0, innerWidth - wrapWidth);
-      const hasMoreOnRight = hasOverflow && this.data.categoryScrollLeft < maxScrollLeft - 4;
-
       this.setData({
         categoryHasOverflow: hasOverflow,
         categoryWrapWidth: wrapWidth,
         categoryScrollWidth: innerWidth,
-        showCategoryMore: hasMoreOnRight
+        showCategoryMore: true
       });
     });
   },
@@ -412,14 +438,13 @@ Page(withPageShare({
   updateCategoryMoreVisibility(scrollLeft = this.data.categoryScrollLeft, scrollWidth = this.data.categoryScrollWidth) {
     const wrapWidth = this.data.categoryWrapWidth || 0;
     const fullWidth = Math.max(0, (scrollWidth || this.data.categoryScrollWidth || 0) - 32);
-    const maxScrollLeft = Math.max(0, fullWidth - wrapWidth);
     const hasOverflow = Boolean(wrapWidth && fullWidth > wrapWidth + 4);
 
     this.setData({
       categoryScrollLeft: Math.max(0, scrollLeft),
       categoryScrollWidth: fullWidth,
       categoryHasOverflow: hasOverflow,
-      showCategoryMore: hasOverflow && scrollLeft < maxScrollLeft - 4
+      showCategoryMore: true
     });
   },
 
@@ -680,22 +705,401 @@ Page(withPageShare({
     });
   },
 
-  openCategoryChooser() {
+  async openCategoryChooser() {
     this.closeSwipe();
     this.setData({
-      categoryChooserVisible: true
+      categoryChooserVisible: true,
+      categoryChooserMode: 'manage',
+      moveDocumentId: '',
+      moveDocumentIds: [],
+      categorySwipeId: '',
+      categories: this.data.categories.map((category) => ({
+        ...category,
+        swipeOffset: 0
+      }))
     });
+
+    wx.showLoading({ title: '加载中', mask: true });
+    try {
+      const categories = await getCategories(this.data.currentUser);
+      this.refreshHomeCategories(categories);
+    } finally {
+      wx.hideLoading();
+    }
   },
 
   closeCategoryChooser() {
     this.setData({
-      categoryChooserVisible: false
+      categoryChooserVisible: false,
+      categoryChooserMode: 'manage',
+      moveDocumentId: '',
+      moveDocumentIds: []
     });
   },
 
-  chooseCategoryFromSheet(event) {
+  async chooseCategoryFromSheet(event) {
+    if (this.data.categoryTouchMoved) {
+      return;
+    }
     const { id } = event.currentTarget.dataset;
+    if (this.data.categoryChooserMode === 'move') {
+      await this.moveDocumentToCategory(id);
+      return;
+    }
     this.applyCategory(id);
+  },
+
+  async openMoveCategoryChooser(event) {
+    const { id } = event.currentTarget.dataset;
+    const doc = this.data.allDocs.find((item) => item.id === id);
+    if (!doc) {
+      return;
+    }
+
+    this.setData({
+      categoryChooserVisible: true,
+      categoryChooserMode: 'move',
+      moveDocumentId: id,
+      moveDocumentIds: [],
+      moveCategoryId: doc.categoryId || DEFAULT_CATEGORY_ID,
+      swipeId: '',
+      docs: this.resetSwipeOffsets(),
+      categorySwipeId: '',
+      categories: this.data.categories.map((category) => ({
+        ...category,
+        swipeOffset: 0
+      }))
+    });
+
+    wx.showLoading({ title: '加载中', mask: true });
+    try {
+      const categories = await getCategories(this.data.currentUser);
+      this.setData({ categories });
+    } finally {
+      wx.hideLoading();
+    }
+  },
+
+  async openBatchMoveCategoryChooser() {
+    const selectedIds = this.data.selectedIds.filter(Boolean);
+    if (!selectedIds.length) {
+      wx.showToast({ title: '请先选择文件', icon: 'none' });
+      return;
+    }
+
+    const selectedIdSet = new Set(selectedIds);
+    const selectedDocs = this.data.allDocs.filter((doc) => selectedIdSet.has(doc.id));
+    const categoryIds = Array.from(new Set(selectedDocs.map((doc) =>
+      doc.categoryId || DEFAULT_CATEGORY_ID
+    )));
+
+    this.setData({
+      categoryChooserVisible: true,
+      categoryChooserMode: 'move',
+      moveDocumentId: '',
+      moveDocumentIds: selectedIds,
+      moveCategoryId: categoryIds.length === 1 ? categoryIds[0] : '',
+      categorySwipeId: '',
+      categories: this.data.categories.map((category) => ({
+        ...category,
+        swipeOffset: 0
+      }))
+    });
+
+    wx.showLoading({ title: '加载中', mask: true });
+    try {
+      const categories = await getCategories(this.data.currentUser);
+      this.setData({ categories });
+    } finally {
+      wx.hideLoading();
+    }
+  },
+
+  async moveDocumentToCategory(categoryId) {
+    const docId = this.data.moveDocumentId;
+    const docIds = this.data.moveDocumentIds;
+    const category = this.data.categories.find((item) => item.id === categoryId);
+    if ((!docId && !docIds.length) || !category) {
+      return;
+    }
+
+    if (categoryId === this.data.moveCategoryId) {
+      this.closeCategoryChooser();
+      return;
+    }
+
+    wx.showLoading({ title: '移动中', mask: true });
+    try {
+      if (docIds.length) {
+        await moveDocumentsCategory(
+          this.data.currentUser,
+          docIds,
+          category.id,
+          category.name
+        );
+      } else {
+        await moveDocumentCategory(
+          this.data.currentUser,
+          docId,
+          category.id,
+          category.name
+        );
+      }
+      this.setData({
+        categoryChooserVisible: false,
+        categoryChooserMode: 'manage',
+        moveDocumentId: '',
+        moveDocumentIds: [],
+        moveCategoryId: category.id,
+        batchMode: docIds.length ? false : this.data.batchMode,
+        selectedIds: docIds.length ? [] : this.data.selectedIds
+      });
+      await this.loadDocuments(this.data.currentUser, { silent: true });
+      this.syncTabBar();
+      wx.hideLoading();
+      setTimeout(() => {
+        wx.showToast({ title: '移动成功', icon: 'success' });
+      }, 80);
+    } catch (error) {
+      wx.hideLoading();
+      wx.showToast({ title: '移动失败，请稍后重试', icon: 'none' });
+    }
+  },
+
+  refreshHomeCategories(categories, preferredCategoryId = this.data.selectedCategoryId) {
+    const selectedCategory = getCategoryByIdFromList(categories, preferredCategoryId);
+    const docs = this.getVisibleDocs(
+      this.data.allDocs,
+      this.data.searchKeyword,
+      this.data.selectedIds,
+      selectedCategory.id,
+      categories
+    );
+    this.setData({
+      categories,
+      selectedCategoryId: selectedCategory.id,
+      docs,
+      categorySwipeId: '',
+      ...this.getBatchSelectionState(docs, this.data.selectedIds)
+    }, () => {
+      this.syncCategoryMoreVisibility();
+    });
+  },
+
+  openHomeNewCategoryDialog() {
+    this.setData({
+      categorySwipeId: '',
+      categories: this.data.categories.map((category) => ({
+        ...category,
+        swipeOffset: 0
+      })),
+      categoryEditDialogVisible: true,
+      categoryEditId: '',
+      categoryEditName: '',
+      categoryEditFocus: false
+    });
+    this.focusHomeCategoryDialog();
+  },
+
+  openHomeCategoryEditDialog(event) {
+    const { id } = event.currentTarget.dataset;
+    const category = this.data.categories.find((item) => item.id === id);
+    if (!category || category.isDefault) {
+      return;
+    }
+
+    this.setData({
+      categorySwipeId: '',
+      categories: this.data.categories.map((item) => ({
+        ...item,
+        swipeOffset: 0
+      })),
+      categoryEditDialogVisible: true,
+      categoryEditId: id,
+      categoryEditName: category.name,
+      categoryEditFocus: false
+    });
+    this.focusHomeCategoryDialog();
+  },
+
+  focusHomeCategoryDialog() {
+    setTimeout(() => {
+      if (this.data.categoryEditDialogVisible) {
+        this.setData({ categoryEditFocus: true });
+      }
+    }, 80);
+  },
+
+  closeHomeCategoryDialog() {
+    if (this.data.categoryEditSaving) {
+      return;
+    }
+
+    this.setData({
+      categoryEditDialogVisible: false,
+      categoryEditId: '',
+      categoryEditName: '',
+      categoryEditFocus: false
+    });
+  },
+
+  onHomeCategoryDialogInput(event) {
+    const limitedValue = limitCategoryName(event.detail.value || '');
+    this.setData({ categoryEditName: limitedValue });
+    return limitedValue;
+  },
+
+  async confirmHomeCategoryDialog() {
+    const id = this.data.categoryEditId;
+    const name = String(this.data.categoryEditName || '').trim();
+    if (!name || this.data.categoryEditSaving) {
+      if (!name) {
+        wx.showToast({ title: '请输入分类名称', icon: 'none' });
+      }
+      return;
+    }
+
+    const duplicateCategory = this.data.categories.find((category) =>
+      category.id !== id && category.name === name
+    );
+    if (duplicateCategory) {
+      wx.showToast({ title: '分类名称已存在', icon: 'none' });
+      return;
+    }
+
+    this.setData({ categoryEditSaving: true, categoryEditFocus: false });
+    wx.showLoading({ title: '保存中', mask: true });
+    try {
+      const categories = id
+        ? await updateCategory(this.data.currentUser, id, name)
+        : await createCategory(this.data.currentUser, name);
+
+      this.refreshHomeCategories(categories);
+      this.setData({
+        categoryEditDialogVisible: false,
+        categoryEditId: '',
+        categoryEditName: '',
+        categoryEditSaving: false
+      });
+      wx.hideLoading();
+      setTimeout(() => {
+        wx.showToast({ title: '保存成功', icon: 'success' });
+      }, 80);
+    } catch (error) {
+      this.setData({ categoryEditSaving: false });
+      wx.hideLoading();
+      wx.showToast({ title: '分类保存失败，请检查云端集合', icon: 'none' });
+    }
+  },
+
+  confirmHomeDeleteCategory(event) {
+    const { id } = event.currentTarget.dataset;
+    const category = this.data.categories.find((item) => item.id === id);
+    if (!category || category.isDefault) {
+      return;
+    }
+
+    wx.showModal({
+      title: '删除提示',
+      content: '被删除分类下如果还有记忆会自动移动到【默认分类】，是否确认删除',
+      confirmText: '删除',
+      cancelText: '取消',
+      confirmColor: '#f55047',
+      success: async (res) => {
+        if (!res.confirm) {
+          return;
+        }
+
+        wx.showLoading({ title: '删除中', mask: true });
+        try {
+          const categories = await deleteCategory(this.data.currentUser, id);
+          const preferredCategoryId = id === this.data.selectedCategoryId
+            ? DEFAULT_CATEGORY_ID
+            : this.data.selectedCategoryId;
+          this.refreshHomeCategories(categories, preferredCategoryId);
+          wx.hideLoading();
+          setTimeout(() => {
+            wx.showToast({ title: '删除成功', icon: 'success' });
+          }, 80);
+        } catch (error) {
+          wx.hideLoading();
+          wx.showToast({ title: '分类删除失败，请检查云端集合', icon: 'none' });
+        }
+      }
+    });
+  },
+
+  onHomeCategoryTouchStart(event) {
+    if (this.data.categoryChooserMode === 'move') {
+      return;
+    }
+    const { id } = event.currentTarget.dataset;
+    const category = this.data.categories.find((item) => item.id === id);
+    if (!category || category.isDefault) {
+      return;
+    }
+
+    this.setData({
+      categoryTouchStartX: event.changedTouches[0].clientX,
+      categoryTouchMoved: false,
+      categorySwipeId: this.data.categorySwipeId && this.data.categorySwipeId !== id ? '' : this.data.categorySwipeId,
+      categories: this.data.categories.map((item) => ({
+        ...item,
+        swipeOffset: item.id === id ? item.swipeOffset || 0 : 0
+      }))
+    });
+  },
+
+  onHomeCategoryTouchMove(event) {
+    if (this.data.categoryChooserMode === 'move') {
+      return;
+    }
+    const { id } = event.currentTarget.dataset;
+    const category = this.data.categories.find((item) => item.id === id);
+    if (!category || category.isDefault) {
+      return;
+    }
+
+    const moveX = event.changedTouches[0].clientX - this.data.categoryTouchStartX;
+    const currentOffset = moveX < 0
+      ? Math.min(this.data.categorySwipeMaxOffset, Math.abs(moveX))
+      : 0;
+    this.setData({
+      categoryTouchMoved: Math.abs(moveX) > 6 || this.data.categoryTouchMoved,
+      categories: this.data.categories.map((item) => ({
+        ...item,
+        swipeOffset: item.id === id ? currentOffset : 0
+      }))
+    });
+  },
+
+  onHomeCategoryTouchEnd(event) {
+    if (this.data.categoryChooserMode === 'move') {
+      return;
+    }
+    const { id } = event.currentTarget.dataset;
+    const category = this.data.categories.find((item) => item.id === id);
+    if (!category || category.isDefault) {
+      return;
+    }
+
+    const moveX = event.changedTouches[0].clientX - this.data.categoryTouchStartX;
+    const shouldOpen = moveX < -this.data.categorySwipeThreshold;
+    this.setData({
+      categorySwipeId: shouldOpen ? id : '',
+      categories: this.data.categories.map((item) => ({
+        ...item,
+        swipeOffset: item.id === id && shouldOpen ? this.data.categorySwipeMaxOffset : 0
+      }))
+    });
+
+    if (this.homeCategoryTouchGuardTimer) {
+      clearTimeout(this.homeCategoryTouchGuardTimer);
+    }
+    this.homeCategoryTouchGuardTimer = setTimeout(() => {
+      this.setData({ categoryTouchMoved: false });
+      this.homeCategoryTouchGuardTimer = null;
+    }, 180);
   },
 
   openDoc(event) {
@@ -956,6 +1360,11 @@ Page(withPageShare({
     if (this.touchGuardTimer) {
       clearTimeout(this.touchGuardTimer);
       this.touchGuardTimer = null;
+    }
+
+    if (this.homeCategoryTouchGuardTimer) {
+      clearTimeout(this.homeCategoryTouchGuardTimer);
+      this.homeCategoryTouchGuardTimer = null;
     }
   }
 }, {

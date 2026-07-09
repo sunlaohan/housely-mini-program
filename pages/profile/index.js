@@ -83,6 +83,8 @@ Page(withPageShare({
     aboutPosterUrl: '',
     aboutVideoReady: false,
     aboutVideoPlaying: false,
+    privacyShow: false,
+    privacyVisible: false,
     feedbackVisible: false,
     feedbackSubmitting: false,
     feedbackMaxCount: 9,
@@ -330,6 +332,22 @@ Page(withPageShare({
       this.setData({ aboutVisible: false });
       setTimeout(() => {
         this.setData({ aboutShow: false });
+      }, 350);
+    }, 50);
+  },
+
+  showPrivacy() {
+    this.setData({ privacyShow: true });
+    setTimeout(() => {
+      this.setData({ privacyVisible: true });
+    }, 30);
+  },
+
+  hidePrivacy() {
+    setTimeout(() => {
+      this.setData({ privacyVisible: false });
+      setTimeout(() => {
+        this.setData({ privacyShow: false });
       }, 350);
     }, 50);
   },
