@@ -9,25 +9,30 @@
   </view>
 
   <view wx:if="{{!searchMode}}" class="document-toolbar">
-    <view class="document-toolbar__left">
-      <view class="document-pill" bindtap="openSearch">
-        <image class="document-pill__icon" src="../../assets/auth/search.svg" mode="aspectFit" />
-        <text class="document-pill__text">查找</text>
+    <view class="document-toolbar__actions">
+      <view class="document-zoom">
+        <view class="document-zoom__button" bindtap="zoomOutText">
+          <image class="document-zoom__icon document-zoom__icon--minus" src="../../assets/auth/zoom-out.svg" mode="aspectFit" />
+        </view>
+        <view class="document-zoom__divider"></view>
+        <view class="document-zoom__button" bindtap="zoomInText">
+          <image class="document-zoom__icon document-zoom__icon--plus" src="../../assets/auth/zoom-in.svg" mode="aspectFit" />
+        </view>
       </view>
+
       <view class="document-pill" bindtap="goEdit">
         <image class="document-pill__icon" src="../../assets/auth/edit.svg" mode="aspectFit" />
         <text class="document-pill__text">编辑</text>
       </view>
+
+      <view class="document-pill document-pill--danger" bindtap="confirmDelete">
+        <text class="document-pill__text document-pill__text--danger">删除</text>
+      </view>
     </view>
 
-    <view class="document-zoom">
-      <view class="document-zoom__button" bindtap="zoomOutText">
-        <image class="document-zoom__icon document-zoom__icon--minus" src="../../assets/auth/zoom-out.svg" mode="aspectFit" />
-      </view>
-      <view class="document-zoom__divider"></view>
-      <view class="document-zoom__button" bindtap="zoomInText">
-        <image class="document-zoom__icon document-zoom__icon--plus" src="../../assets/auth/zoom-in.svg" mode="aspectFit" />
-      </view>
+    <view class="document-pill document-pill--search" bindtap="openSearch">
+      <image class="document-pill__icon" src="../../assets/auth/search.svg" mode="aspectFit" />
+      <text class="document-pill__text">查找</text>
     </view>
   </view>
 
@@ -73,7 +78,12 @@
           >{{plainTitle}}</text>
           <block wx:else>
             <block wx:for="{{titleSegments}}" wx:key="id" wx:for-item="segment">
-              <text class="document-card__title-segment {{segment.matched ? 'document-card__segment--matched' : ''}}" style="{{titleTextStyle}}">{{segment.text}}</text>
+              <text
+                class="document-card__title-segment {{segment.matched ? 'document-card__segment--matched' : ''}}"
+                style="{{titleTextStyle}}"
+                user-select="{{true}}"
+                selectable="{{true}}"
+              >{{segment.text}}</text>
             </block>
           </block>
         </view>
@@ -91,7 +101,12 @@
               <view id="{{line.id}}" class="document-card__line {{line.isEmpty ? 'document-card__line--empty' : ''}}" style="{{line.isEmpty ? emptyLineStyle : ''}}">
                 <block wx:if="{{!line.isEmpty}}">
                   <block wx:for="{{line.segments}}" wx:key="id" wx:for-item="segment">
-                    <text class="document-card__content-segment {{segment.matched ? 'document-card__segment--matched' : ''}}" style="{{contentTextStyle}}">{{segment.text}}</text>
+                    <text
+                      class="document-card__content-segment {{segment.matched ? 'document-card__segment--matched' : ''}}"
+                      style="{{contentTextStyle}}"
+                      user-select="{{true}}"
+                      selectable="{{true}}"
+                    >{{segment.text}}</text>
                   </block>
                 </block>
               </view>

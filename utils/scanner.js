@@ -289,7 +289,7 @@ async function callOcr(action, payload = {}) {
   return result.result || {};
 }
 
-function chooseImageSources(limit = 6) {
+function chooseImageSources(limit = 9) {
   return new Promise((resolve, reject) => {
     wx.chooseMedia({
       count: limit,

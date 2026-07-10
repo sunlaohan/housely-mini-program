@@ -1,7 +1,8 @@
 const { ensureAuth } = require('../../utils/page');
-const { getDocumentById } = require('../../utils/docs');
+const { deleteDocument, getDocumentById } = require('../../utils/docs');
 const { withPageShare } = require('../../utils/share');
 const { getCurrentUser, updateLocalPreviewFontScale, updatePreviewFontScale } = require('../../utils/account');
+const { KEYS, write } = require('../../utils/storage');
 
 const DEFAULT_TITLE = '未命名文档';
 const MIN_FONT_SCALE = 1;
@@ -222,6 +223,7 @@ Page(withPageShare({
     ensureAuth(this, async (user) => {
       this.lastSavedFontScale = getUserPreviewFontScale(user);
       getApp().setCurrentUser(user);
+      this.setData({ currentUser: user });
       this.applyFontScale(this.lastSavedFontScale);
       await this.loadDocument(user);
     });
@@ -383,6 +385,48 @@ Page(withPageShare({
 
     wx.navigateTo({
       url: `/pages/editor/index?id=${this.data.docId}`
+    });
+  },
+
+  confirmDelete() {
+    if (!this.data.docId || !this.data.currentUser) {
+      return;
+    }
+
+    wx.showModal({
+      title: '删除文件',
+      content: '删除后无法恢复，确定继续吗？',
+      confirmText: '删除',
+      cancelText: '取消',
+      confirmColor: '#f55047',
+      success: async (res) => {
+        if (!res.confirm) {
+          return;
+        }
+
+        wx.showLoading({
+          title: '删除中...',
+          mask: true
+        });
+
+        try {
+          const categoryId = this.data.doc && this.data.doc.categoryId ? this.data.doc.categoryId : '';
+          await deleteDocument(this.data.currentUser, this.data.docId);
+          if (categoryId) {
+            write(KEYS.PENDING_HOME_CATEGORY_ID, categoryId);
+          }
+          wx.hideLoading();
+          wx.showToast({ title: '已删除', icon: 'success' });
+          setTimeout(() => {
+            wx.switchTab({
+              url: '/pages/home/index'
+            });
+          }, 500);
+        } catch (error) {
+          wx.hideLoading();
+          wx.showToast({ title: '删除失败', icon: 'none' });
+        }
+      }
     });
   },
 

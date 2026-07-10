@@ -4,6 +4,7 @@ const KEYS = {
   GUEST_ID: 'housely_guest_id',
   COVER_URLS: 'housely_cover_urls',
   DOC_COVERS: 'housely_doc_covers',
+  PENDING_HOME_CATEGORY_ID: 'housely_pending_home_category_id',
   CATEGORIES_PREFIX: 'housely_categories_',
   DOCS_PREFIX: 'housely_docs_'
 };

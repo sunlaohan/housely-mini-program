@@ -206,8 +206,9 @@
         <view class="home-category-sheet__list">
           <block wx:for="{{categories}}" wx:key="id">
             <view
-              class="home-category-swipe-shell {{item.swipeOffset ? 'home-category-swipe-shell--open' : ''}}"
+              class="home-category-swipe-shell {{item.swipeOffset ? 'home-category-swipe-shell--open' : ''}} {{item.dragging ? 'home-category-swipe-shell--dragging' : ''}}"
               data-id="{{item.id}}"
+              style="{{item.dragStyle || ''}}"
               bindtouchstart="onHomeCategoryTouchStart"
               bindtouchmove="onHomeCategoryTouchMove"
               bindtouchend="onHomeCategoryTouchEnd"
@@ -223,6 +224,16 @@
                 data-id="{{item.id}}"
                 bindtap="chooseCategoryFromSheet"
               >
+                <view
+                  wx:if="{{categoryChooserMode !== 'move' && !item.isDefault}}"
+                  class="home-category-sheet__drag"
+                  data-id="{{item.id}}"
+                  data-index="{{index}}"
+                  catchtouchstart="startHomeCategoryDrag"
+                  catchtouchmove="moveHomeCategoryDrag"
+                  catchtouchend="endHomeCategoryDrag"
+                  catchtouchcancel="endHomeCategoryDrag"
+                >☰</view>
                 <text class="home-category-sheet__name">{{item.name}}</text>
                 <view wx:if="{{(categoryChooserMode === 'move' ? moveCategoryId : selectedCategoryId) === item.id}}" class="home-category-sheet__check"></view>
               </view>

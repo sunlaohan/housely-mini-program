@@ -259,6 +259,42 @@ async function deleteCategory(user, categoryId) {
   return refreshCategoriesFromCloud(user);
 }
 
+async function updateCategoryOrder(user, orderedCategoryIds = []) {
+  const categories = await getCategories(user);
+  const categoryMap = new Map(categories.map((category) => [category.id, category]));
+  const orderedCustomIds = (Array.isArray(orderedCategoryIds) ? orderedCategoryIds : [])
+    .filter((id) => id && id !== DEFAULT_CATEGORY_ID && categoryMap.has(id));
+  const missingIds = categories
+    .filter((category) => category.id !== DEFAULT_CATEGORY_ID && !orderedCustomIds.includes(category.id))
+    .map((category) => category.id);
+  const nextIds = orderedCustomIds.concat(missingIds);
+  const now = new Date();
+  const baseSort = now.getTime();
+  const nextCategories = categories.map((category) => {
+    const index = nextIds.indexOf(category.id);
+    if (category.id === DEFAULT_CATEGORY_ID || index < 0) {
+      return category;
+    }
+
+    return {
+      ...category,
+      sort: baseSort - index,
+      updatedAt: now
+    };
+  });
+
+  await Promise.all(nextCategories
+    .filter((category) => category.id !== DEFAULT_CATEGORY_ID && category.cloudId)
+    .map((category) => categoriesCollection().doc(category.cloudId).update({
+      data: {
+        sort: category.sort,
+        updatedAt: now
+      }
+    })));
+
+  return saveLocalCategories(user, nextCategories);
+}
+
 async function getCategoryById(user, categoryId) {
   const categories = await getCategories(user);
   return categories.find((category) => category.id === categoryId) || categories[0] || getDefaultCategory();
@@ -330,5 +366,6 @@ module.exports = {
   getDefaultCategory,
   getLocalCategories,
   saveLocalCategories,
-  updateCategory
+  updateCategory,
+  updateCategoryOrder
 };

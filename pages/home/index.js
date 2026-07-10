@@ -8,7 +8,7 @@ const {
 } = require('../../utils/docs');
 const { withPageShare } = require('../../utils/share');
 const { getCurrentUser } = require('../../utils/account');
-const { KEYS, read, write } = require('../../utils/storage');
+const { KEYS, read, write, remove } = require('../../utils/storage');
 const {
   DEFAULT_CATEGORY_ID,
   createCategory,
@@ -16,7 +16,8 @@ const {
   getCategories,
   getCategoryByIdFromList,
   getDefaultCategory,
-  updateCategory
+  updateCategory,
+  updateCategoryOrder
 } = require('../../utils/categories');
 
 const CATEGORY_NAME_MAX_LENGTH = 16;
@@ -51,6 +52,52 @@ const SHARE_HIGHLIGHTS = [
 
 function limitCategoryName(value = '') {
   return Array.from(String(value || '')).slice(0, CATEGORY_NAME_MAX_LENGTH).join('');
+}
+
+function moveArrayItem(items, fromIndex, toIndex) {
+  if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0 || fromIndex >= items.length || toIndex >= items.length) {
+    return items;
+  }
+
+  const nextItems = items.slice();
+  const [item] = nextItems.splice(fromIndex, 1);
+  nextItems.splice(toIndex, 0, item);
+  return nextItems;
+}
+
+function getCategoryRowHeightPx() {
+  const systemInfo = wx.getSystemInfoSync();
+  return Math.max(44, ((systemInfo.windowWidth || 375) / 750) * 96);
+}
+
+function getTouchY(event) {
+  const touch = event.changedTouches && event.changedTouches[0];
+  return touch ? touch.clientY : 0;
+}
+
+function buildCategoryDragPreviewItems(categories, sourceIndex, hoverIndex, offsetY, rowHeight) {
+  if (sourceIndex < 0 || hoverIndex < 0) {
+    return categories;
+  }
+
+  return categories.map((category, index) => {
+    let dragStyle = '';
+    const shift = rowHeight || getCategoryRowHeightPx();
+
+    if (index === sourceIndex) {
+      dragStyle = `transform: translateY(${offsetY}px) scale(1.025); z-index: 4;`;
+    } else if (hoverIndex > sourceIndex && index > sourceIndex && index <= hoverIndex) {
+      dragStyle = `transform: translateY(-${shift}px);`;
+    } else if (hoverIndex < sourceIndex && index >= hoverIndex && index < sourceIndex) {
+      dragStyle = `transform: translateY(${shift}px);`;
+    }
+
+    return {
+      ...category,
+      dragStyle,
+      dragging: index === sourceIndex
+    };
+  });
 }
 
 const SHARE_SCENES = [
@@ -240,6 +287,24 @@ function scoreDocMatch(doc, keyword = '') {
   };
 }
 
+function consumePendingHomeCategoryId() {
+  const categoryId = String(read(KEYS.PENDING_HOME_CATEGORY_ID, '') || '').trim();
+  if (categoryId) {
+    remove(KEYS.PENDING_HOME_CATEGORY_ID);
+  }
+
+  return categoryId;
+}
+
+function waitForNextRender(callback) {
+  if (typeof wx.nextTick === 'function') {
+    wx.nextTick(callback);
+    return;
+  }
+
+  setTimeout(callback, 50);
+}
+
 Page(withPageShare({
   data: {
     currentUser: null,
@@ -270,7 +335,14 @@ Page(withPageShare({
     categoryTouchStartX: 0,
     categoryTouchMoved: false,
     categorySwipeThreshold: 28,
-    categorySwipeMaxOffset: 176,
+    categorySwipeMaxOffset: 240,
+    categoryDragKey: '',
+    categoryDragIndex: -1,
+    categoryDragStartY: 0,
+    categoryDragMoved: false,
+    categoryDragHoverIndex: -1,
+    categoryDragSaving: false,
+    categoryDragBaseList: [],
     allDocs: [],
     docs: [],
     isLoadingDocs: false,
@@ -333,18 +405,38 @@ Page(withPageShare({
       return;
     }
 
-    const categories = await getCategories(currentUser);
-    this.setData({
-      shareLandingVisible: false,
-      categories,
-      isLoadingDocs: !this.data.allDocs.length && !this.data.docs.length
-    }, () => {
-      this.syncCategoryMoreVisibility();
-    });
-    this.syncTabBar();
-    ensureAuth(this, async (user) => {
-      await this.loadDocuments(user);
-    });
+    const pendingCategoryId = String(read(KEYS.PENDING_HOME_CATEGORY_ID, '') || '').trim();
+    const shouldShowReturnLoading = Boolean(pendingCategoryId);
+    if (shouldShowReturnLoading) {
+      wx.showLoading({ title: '加载中...', mask: true });
+    }
+
+    try {
+      const categories = await getCategories(currentUser);
+      this.setData({
+        shareLandingVisible: false,
+        categories,
+        isLoadingDocs: shouldShowReturnLoading || (!this.data.allDocs.length && !this.data.docs.length)
+      }, () => {
+        this.syncCategoryMoreVisibility();
+      });
+      this.syncTabBar();
+      ensureAuth(this, async (user) => {
+        await this.loadDocuments(user, {
+          pendingCategoryId,
+          showLoadingOverlay: shouldShowReturnLoading
+        });
+      });
+    } catch (error) {
+      if (shouldShowReturnLoading) {
+        wx.hideLoading();
+      }
+      this.setData({
+        isLoadingDocs: false,
+        contentRefreshing: false
+      });
+      wx.showToast({ title: '加载文档失败', icon: 'none' });
+    }
   },
 
   async onListRefresh() {
@@ -364,12 +456,23 @@ Page(withPageShare({
   },
 
   async loadDocuments(user, options = {}) {
-    const { silent = false } = options;
+    const { silent = false, pendingCategoryId = '', showLoadingOverlay = false } = options;
+    const targetCategoryId = String(pendingCategoryId || '').trim() || consumePendingHomeCategoryId();
+    if (targetCategoryId) {
+      remove(KEYS.PENDING_HOME_CATEGORY_ID);
+    }
 
     try {
       const docs = await this.hydrateDocCovers((await getDocuments(user)).map(this.decorateDoc));
       const categories = await getCategories(user);
-      const currentCategory = getCategoryByIdFromList(categories, this.data.selectedCategoryId);
+      const currentCategory = getCategoryByIdFromList(categories, targetCategoryId || this.data.selectedCategoryId);
+      const lastCategory = categories[categories.length - 1] || null;
+      const isLastCategory = Boolean(lastCategory && lastCategory.id === currentCategory.id);
+      const categoryScrollState = targetCategoryId ? {
+        categoryScrollIntoView: isLastCategory ? '' : `category-tab-${currentCategory.id}`,
+        categoryScrollTargetLeft: isLastCategory ? 99999 : this.data.categoryScrollLeft,
+        showCategoryMore: isLastCategory ? false : this.data.showCategoryMore
+      } : {};
       const existingIds = new Set(docs.map((doc) => doc.id));
       const selectedIds = this.data.selectedIds.filter((id) => existingIds.has(id));
       const visibleDocs = this.getVisibleDocs(docs, this.data.searchKeyword, selectedIds, currentCategory.id, categories);
@@ -384,9 +487,15 @@ Page(withPageShare({
         swipeId: '',
         isLoadingDocs: false,
         contentRefreshing: false,
+        ...categoryScrollState,
         ...batchSelection
       }, () => {
         this.syncCategoryMoreVisibility();
+        if (showLoadingOverlay) {
+          waitForNextRender(() => {
+            wx.hideLoading();
+          });
+        }
       });
       getApp().setCurrentUser(user);
     } catch (error) {
@@ -394,6 +503,9 @@ Page(withPageShare({
         isLoadingDocs: false,
         contentRefreshing: false
       });
+      if (showLoadingOverlay) {
+        wx.hideLoading();
+      }
       wx.showToast({ title: silent ? '刷新失败' : '加载文档失败', icon: 'none' });
     }
   },
@@ -1033,6 +1145,10 @@ Page(withPageShare({
     if (this.data.categoryChooserMode === 'move') {
       return;
     }
+    if (this.data.categoryDragKey) {
+      return;
+    }
+
     const { id } = event.currentTarget.dataset;
     const category = this.data.categories.find((item) => item.id === id);
     if (!category || category.isDefault) {
@@ -1054,6 +1170,10 @@ Page(withPageShare({
     if (this.data.categoryChooserMode === 'move') {
       return;
     }
+    if (this.data.categoryDragKey) {
+      return;
+    }
+
     const { id } = event.currentTarget.dataset;
     const category = this.data.categories.find((item) => item.id === id);
     if (!category || category.isDefault) {
@@ -1077,6 +1197,10 @@ Page(withPageShare({
     if (this.data.categoryChooserMode === 'move') {
       return;
     }
+    if (this.data.categoryDragKey) {
+      return;
+    }
+
     const { id } = event.currentTarget.dataset;
     const category = this.data.categories.find((item) => item.id === id);
     if (!category || category.isDefault) {
@@ -1100,6 +1224,124 @@ Page(withPageShare({
       this.setData({ categoryTouchMoved: false });
       this.homeCategoryTouchGuardTimer = null;
     }, 180);
+  },
+
+  startHomeCategoryDrag(event) {
+    if (this.data.categoryChooserMode === 'move') {
+      return;
+    }
+
+    const { id, index } = event.currentTarget.dataset;
+    const dragIndex = Number(index);
+    const category = this.data.categories[dragIndex];
+    if (!category || category.id !== id || category.isDefault || this.data.categoryDragSaving) {
+      return;
+    }
+
+    this.setData({
+      categoryDragKey: id,
+      categoryDragIndex: dragIndex,
+      categoryDragStartY: getTouchY(event),
+      categoryDragMoved: false,
+      categoryDragHoverIndex: dragIndex,
+      categorySwipeId: '',
+      categoryTouchMoved: true,
+      categoryDragBaseList: this.data.categories.map((item) => ({
+        ...item,
+        swipeOffset: 0,
+        dragStyle: ''
+      })),
+      categories: this.data.categories.map((item) => ({
+        ...item,
+        swipeOffset: 0,
+        dragging: item.id === id,
+        dragStyle: ''
+      }))
+    });
+  },
+
+  moveHomeCategoryDrag(event) {
+    if (!this.data.categoryDragKey) {
+      return;
+    }
+
+    const baseList = this.data.categoryDragBaseList.length
+      ? this.data.categoryDragBaseList
+      : this.data.categories;
+    const rowHeight = getCategoryRowHeightPx();
+    const offsetY = getTouchY(event) - this.data.categoryDragStartY;
+    const rawIndex = this.data.categoryDragIndex + Math.round(offsetY / rowHeight);
+    const hoverIndex = Math.max(1, Math.min(baseList.length - 1, rawIndex));
+    const moved = hoverIndex !== this.data.categoryDragIndex || Math.abs(offsetY) > 8;
+    const nextCategories = buildCategoryDragPreviewItems(
+      baseList,
+      this.data.categoryDragIndex,
+      hoverIndex,
+      offsetY,
+      rowHeight
+    );
+
+    this.setData({
+      categoryDragMoved: moved,
+      categoryDragHoverIndex: hoverIndex,
+      categories: nextCategories
+    });
+  },
+
+  async endHomeCategoryDrag() {
+    if (!this.data.categoryDragKey) {
+      return;
+    }
+
+    const moved = this.data.categoryDragMoved;
+    const baseList = this.data.categoryDragBaseList.length
+      ? this.data.categoryDragBaseList
+      : this.data.categories;
+    const finalIndex = Math.max(1, Math.min(baseList.length - 1, this.data.categoryDragHoverIndex));
+    const orderedCategories = moved
+      ? moveArrayItem(baseList, this.data.categoryDragIndex, finalIndex)
+      : baseList;
+    const nextCategories = orderedCategories.map((item) => ({
+      ...item,
+      dragging: false,
+      dragOver: false,
+      swipeOffset: 0,
+      dragStyle: ''
+    }));
+
+    this.setData({
+      categories: nextCategories,
+      categoryDragKey: '',
+      categoryDragIndex: -1,
+      categoryDragStartY: 0,
+      categoryDragMoved: false,
+      categoryDragHoverIndex: -1,
+      categoryDragBaseList: []
+    });
+
+    if (!moved) {
+      setTimeout(() => {
+        this.setData({ categoryTouchMoved: false });
+      }, 180);
+      return;
+    }
+
+    this.setData({ categoryDragSaving: true });
+    try {
+      const categories = await updateCategoryOrder(
+        this.data.currentUser,
+        nextCategories.map((category) => category.id)
+      );
+      this.refreshHomeCategories(categories, this.data.selectedCategoryId);
+      this.setData({ categoryDragSaving: false });
+    } catch (error) {
+      this.setData({ categoryDragSaving: false });
+      wx.showToast({ title: '分类排序保存失败', icon: 'none' });
+    } finally {
+      setTimeout(() => {
+        this.setData({ categoryTouchMoved: false });
+      }, 180);
+    }
   },
 
   openDoc(event) {

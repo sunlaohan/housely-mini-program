@@ -12,7 +12,8 @@ const {
   getCategoryByIdFromList,
   getCategories,
   getDefaultCategory,
-  updateCategory
+  updateCategory,
+  updateCategoryOrder
 } = require('../../utils/categories');
 
 const CATEGORY_NAME_MAX_LENGTH = 16;
@@ -90,6 +91,41 @@ function moveArrayItem(items, fromIndex, toIndex) {
   const [item] = nextItems.splice(fromIndex, 1);
   nextItems.splice(toIndex, 0, item);
   return nextItems;
+}
+
+function getCategoryRowHeightPx() {
+  const systemInfo = wx.getSystemInfoSync();
+  return Math.max(44, ((systemInfo.windowWidth || 375) / 750) * 96);
+}
+
+function getTouchY(event) {
+  const touch = event.changedTouches && event.changedTouches[0];
+  return touch ? touch.clientY : 0;
+}
+
+function buildCategoryDragPreviewItems(categories, sourceIndex, hoverIndex, offsetY, rowHeight) {
+  if (sourceIndex < 0 || hoverIndex < 0) {
+    return categories;
+  }
+
+  return categories.map((category, index) => {
+    let dragStyle = '';
+    const shift = rowHeight || getCategoryRowHeightPx();
+
+    if (index === sourceIndex) {
+      dragStyle = `transform: translateY(${offsetY}px) scale(1.025); z-index: 4;`;
+    } else if (hoverIndex > sourceIndex && index > sourceIndex && index <= hoverIndex) {
+      dragStyle = `transform: translateY(-${shift}px);`;
+    } else if (hoverIndex < sourceIndex && index >= hoverIndex && index < sourceIndex) {
+      dragStyle = `transform: translateY(${shift}px);`;
+    }
+
+    return {
+      ...category,
+      dragStyle,
+      dragging: index === sourceIndex
+    };
+  });
 }
 
 function buildDragPreviewItems(sourceFiles, rects, sourceIndex, hoverIndex, offsetX, offsetY) {
@@ -206,7 +242,7 @@ Page(withPageShare({
     navBarHeight: 44,
     navSafeHeight: 64,
     capsuleSafeWidth: 88,
-    maxSourceCount: 6,
+    maxSourceCount: 9,
     docId: '',
     sourceFiles: [],
     sourceName: '',
@@ -229,13 +265,21 @@ Page(withPageShare({
     categoryTouchStartX: 0,
     categoryTouchMoved: false,
     categorySwipeThreshold: 28,
-    categorySwipeMaxOffset: 176,
+    categorySwipeMaxOffset: 240,
+    categoryDragKey: '',
+    categoryDragIndex: -1,
+    categoryDragStartY: 0,
+    categoryDragMoved: false,
+    categoryDragHoverIndex: -1,
+    categoryDragSaving: false,
+    categoryDragBaseList: [],
     name: '',
     description: '',
     markdown: '',
     markdownFocused: false,
-    editorBodyBottomPadding: 120,
-    editorKeyboardSpacerHeight: 120,
+    markdownInputDisabled: false,
+    editorBodyBottomPadding: 220,
+    editorKeyboardSpacerHeight: 220,
     mode: 'create',
     isScanning: false,
     isSaving: false,
@@ -494,6 +538,10 @@ Page(withPageShare({
   noop() {},
 
   onCategoryTouchStart(event) {
+    if (this.data.categoryDragKey) {
+      return;
+    }
+
     const { id } = event.currentTarget.dataset;
     const category = this.data.categories.find((item) => item.id === id);
     if (!category || category.isDefault || category.editing) {
@@ -512,6 +560,10 @@ Page(withPageShare({
   },
 
   onCategoryTouchMove(event) {
+    if (this.data.categoryDragKey) {
+      return;
+    }
+
     const { id } = event.currentTarget.dataset;
     const category = this.data.categories.find((item) => item.id === id);
     if (!category || category.isDefault || category.editing) {
@@ -533,6 +585,10 @@ Page(withPageShare({
   },
 
   onCategoryTouchEnd(event) {
+    if (this.data.categoryDragKey) {
+      return;
+    }
+
     const { id } = event.currentTarget.dataset;
     const category = this.data.categories.find((item) => item.id === id);
     if (!category || category.isDefault || category.editing) {
@@ -558,6 +614,125 @@ Page(withPageShare({
       this.setData({ categoryTouchMoved: false });
       this.categoryTouchGuardTimer = null;
     }, 180);
+  },
+
+  startCategoryDrag(event) {
+    const { id, index } = event.currentTarget.dataset;
+    const dragIndex = Number(index);
+    const category = this.data.categories[dragIndex];
+    if (!category || category.id !== id || category.isDefault || this.data.categoryDragSaving) {
+      return;
+    }
+
+    this.setData({
+      categoryDragKey: id,
+      categoryDragIndex: dragIndex,
+      categoryDragStartY: getTouchY(event),
+      categoryDragMoved: false,
+      categoryDragHoverIndex: dragIndex,
+      categorySwipeId: '',
+      categoryTouchMoved: true,
+      categoryDragBaseList: this.data.categories.map((item) => ({
+        ...item,
+        swipeOffset: 0,
+        dragStyle: ''
+      })),
+      categories: this.data.categories.map((item) => ({
+        ...item,
+        swipeOffset: 0,
+        dragging: item.id === id,
+        dragStyle: ''
+      }))
+    });
+  },
+
+  moveCategoryDrag(event) {
+    if (!this.data.categoryDragKey) {
+      return;
+    }
+
+    const baseList = this.data.categoryDragBaseList.length
+      ? this.data.categoryDragBaseList
+      : this.data.categories;
+    const rowHeight = getCategoryRowHeightPx();
+    const offsetY = getTouchY(event) - this.data.categoryDragStartY;
+    const rawIndex = this.data.categoryDragIndex + Math.round(offsetY / rowHeight);
+    const hoverIndex = Math.max(1, Math.min(baseList.length - 1, rawIndex));
+    const moved = hoverIndex !== this.data.categoryDragIndex || Math.abs(offsetY) > 8;
+    const nextCategories = buildCategoryDragPreviewItems(
+      baseList,
+      this.data.categoryDragIndex,
+      hoverIndex,
+      offsetY,
+      rowHeight
+    );
+
+    this.setData({
+      categoryDragMoved: moved,
+      categoryDragHoverIndex: hoverIndex,
+      categories: nextCategories
+    });
+  },
+
+  async endCategoryDrag() {
+    if (!this.data.categoryDragKey) {
+      return;
+    }
+
+    const moved = this.data.categoryDragMoved;
+    const baseList = this.data.categoryDragBaseList.length
+      ? this.data.categoryDragBaseList
+      : this.data.categories;
+    const finalIndex = Math.max(1, Math.min(baseList.length - 1, this.data.categoryDragHoverIndex));
+    const orderedCategories = moved
+      ? moveArrayItem(baseList, this.data.categoryDragIndex, finalIndex)
+      : baseList;
+    const nextCategories = orderedCategories.map((item) => ({
+      ...item,
+      dragging: false,
+      dragOver: false,
+      swipeOffset: 0,
+      dragStyle: ''
+    }));
+
+    this.setData({
+      categories: nextCategories,
+      categoryDragKey: '',
+      categoryDragIndex: -1,
+      categoryDragStartY: 0,
+      categoryDragMoved: false,
+      categoryDragHoverIndex: -1,
+      categoryDragBaseList: []
+    });
+
+    if (!moved) {
+      setTimeout(() => {
+        this.setData({ categoryTouchMoved: false });
+      }, 180);
+      return;
+    }
+
+    this.setData({ categoryDragSaving: true });
+    try {
+      const categories = await updateCategoryOrder(
+        this.data.currentUser,
+        nextCategories.map((category) => category.id)
+      );
+      const selectedCategory = getCategoryByIdFromList(categories, this.data.selectedCategoryId);
+      this.setData({
+        categories,
+        selectedCategoryId: selectedCategory.id,
+        selectedCategoryName: selectedCategory.name,
+        categoryDragSaving: false
+      });
+    } catch (error) {
+      this.setData({ categoryDragSaving: false });
+      wx.showToast({ title: '分类排序保存失败', icon: 'none' });
+    } finally {
+      setTimeout(() => {
+        this.setData({ categoryTouchMoved: false });
+      }, 180);
+    }
   },
 
   onLoad(options) {
@@ -776,6 +951,15 @@ Page(withPageShare({
   },
 
   onMarkdownFocus(event) {
+    if (this.data.markdownInputDisabled) {
+      wx.hideKeyboard();
+      setTimeout(() => {
+        wx.hideKeyboard();
+      }, 80);
+      this.restoreEditorFooter();
+      return;
+    }
+
     const keyboardHeight = Number(event.detail && event.detail.height) || 0;
     this.applyMarkdownKeyboardHeight(keyboardHeight);
   },
@@ -794,6 +978,46 @@ Page(withPageShare({
     this.applyMarkdownKeyboardHeight(keyboardHeight);
   },
 
+  prepareFooterAction() {
+    this.temporarilyDisableMarkdownInput();
+    wx.hideKeyboard();
+    setTimeout(() => {
+      wx.hideKeyboard();
+    }, 80);
+    this.restoreEditorFooter();
+  },
+
+  temporarilyDisableMarkdownInput(duration = 900) {
+    if (this.markdownInputRestoreTimer) {
+      clearTimeout(this.markdownInputRestoreTimer);
+      this.markdownInputRestoreTimer = null;
+    }
+
+    this.setData({ markdownInputDisabled: true });
+
+    if (!duration) {
+      return;
+    }
+
+    this.markdownInputRestoreTimer = setTimeout(() => {
+      this.markdownInputRestoreTimer = null;
+      if (!this._isSaving && !this.data.isSaving) {
+        this.setData({ markdownInputDisabled: false });
+      }
+    }, duration);
+  },
+
+  restoreMarkdownInput() {
+    if (this.markdownInputRestoreTimer) {
+      clearTimeout(this.markdownInputRestoreTimer);
+      this.markdownInputRestoreTimer = null;
+    }
+
+    if (this.data.markdownInputDisabled) {
+      this.setData({ markdownInputDisabled: false });
+    }
+  },
+
   restoreEditorFooter() {
     if (this.markdownScrollTimer) {
       clearTimeout(this.markdownScrollTimer);
@@ -802,8 +1026,8 @@ Page(withPageShare({
 
     this.setData({
       markdownFocused: false,
-      editorBodyBottomPadding: 120,
-      editorKeyboardSpacerHeight: 120
+      editorBodyBottomPadding: 220,
+      editorKeyboardSpacerHeight: 220
     });
   },
 
@@ -899,9 +1123,7 @@ Page(withPageShare({
         ocrTaskId: '',
         ocrProvider: '',
         ocrStatus: '',
-        ocrMessage: hasRecognizedContent ? '图片已更新，请重新识别内容' : '',
-        description: '',
-        markdown: ''
+        ocrMessage: hasRecognizedContent ? '图片已更新，请重新识别内容' : ''
       });
     } catch (error) {
       if (error && error.code === 'OCR_IMAGE_TOO_LARGE') {
@@ -1083,15 +1305,25 @@ Page(withPageShare({
       ocrTaskId: '',
       ocrProvider: '',
       ocrStatus: '',
-      ocrMessage: sourceFiles.length && hasRecognizedContent ? '图片已更新，请重新识别内容' : '',
-      description: '',
-      markdown: ''
+      ocrMessage: sourceFiles.length && hasRecognizedContent ? '图片已更新，请重新识别内容' : ''
     });
   },
 
   async saveDocument() {
     if (this._isSaving) {
       return;
+    }
+
+    this.temporarilyDisableMarkdownInput(0);
+    wx.hideKeyboard();
+    setTimeout(() => {
+      wx.hideKeyboard();
+    }, 80);
+    setTimeout(() => {
+      wx.hideKeyboard();
+    }, 220);
+    if (this.data.markdownFocused) {
+      this.restoreEditorFooter();
     }
 
     const {
@@ -1112,16 +1344,19 @@ Page(withPageShare({
     } = this.data;
 
     if (isScanning) {
+      this.restoreMarkdownInput();
       wx.showToast({ title: 'OCR 处理中，请稍候', icon: 'none' });
       return;
     }
 
     if (isSaving) {
+      this.restoreMarkdownInput();
       wx.showToast({ title: '正在保存，请稍候', icon: 'none' });
       return;
     }
 
     if (!currentUser) {
+      this.restoreMarkdownInput();
       wx.showToast({ title: '请先登录后保存', icon: 'none' });
       setTimeout(() => {
         wx.switchTab({
@@ -1136,6 +1371,7 @@ Page(withPageShare({
     const normalizedMarkdown = String(markdown || '');
 
     if (!trimmedName) {
+      this.restoreMarkdownInput();
       wx.showToast({ title: '请填写记忆名称', icon: 'none' });
       return;
     }
@@ -1201,6 +1437,7 @@ Page(withPageShare({
         cacheCoverPreview(uploadedSourceFiles, savedDoc && savedDoc.id);
       }
 
+      write(KEYS.PENDING_HOME_CATEGORY_ID, selectedCategoryId || DEFAULT_CATEGORY_ID);
       wx.showToast({ title: mode === 'edit' ? '已更新' : '已保存', icon: 'success' });
       setTimeout(() => {
         wx.switchTab({
@@ -1230,7 +1467,10 @@ Page(withPageShare({
       wx.showToast({ title: '保存失败，请检查数据表', icon: 'none' });
     } finally {
       this._isSaving = false;
-      this.setData({ isSaving: false });
+      this.setData({
+        isSaving: false,
+        markdownInputDisabled: false
+      });
     }
   },
 
@@ -1243,6 +1483,11 @@ Page(withPageShare({
     if (this.categoryTouchGuardTimer) {
       clearTimeout(this.categoryTouchGuardTimer);
       this.categoryTouchGuardTimer = null;
+    }
+
+    if (this.markdownInputRestoreTimer) {
+      clearTimeout(this.markdownInputRestoreTimer);
+      this.markdownInputRestoreTimer = null;
     }
   }
 }));
