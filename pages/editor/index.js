@@ -22,13 +22,15 @@ function getNavMetrics() {
   const systemInfo = wx.getSystemInfoSync();
   const statusBarHeight = systemInfo.statusBarHeight || 20;
   const windowWidth = systemInfo.windowWidth || 375;
+  const editorViewportHeight = systemInfo.windowHeight || 667;
 
   if (!wx.getMenuButtonBoundingClientRect) {
     return {
       statusBarHeight,
       navBarHeight: 44,
       navSafeHeight: statusBarHeight + 44,
-      capsuleSafeWidth: 88
+      capsuleSafeWidth: 88,
+      editorViewportHeight
     };
   }
 
@@ -39,7 +41,8 @@ function getNavMetrics() {
     statusBarHeight,
     navBarHeight,
     navSafeHeight: statusBarHeight + navBarHeight,
-    capsuleSafeWidth: windowWidth - menuRect.left + 8
+    capsuleSafeWidth: windowWidth - menuRect.left + 8,
+    editorViewportHeight
   };
 }
 
@@ -242,6 +245,7 @@ Page(withPageShare({
     navBarHeight: 44,
     navSafeHeight: 64,
     capsuleSafeWidth: 88,
+    editorViewportHeight: 667,
     maxSourceCount: 9,
     docId: '',
     sourceFiles: [],
@@ -278,8 +282,9 @@ Page(withPageShare({
     markdown: '',
     markdownFocused: false,
     markdownInputDisabled: false,
-    editorBodyBottomPadding: 220,
-    editorKeyboardSpacerHeight: 220,
+    editorScrollTop: 0,
+    editorScrollWithAnimation: false,
+    editorBodyBottomPadding: 120,
     mode: 'create',
     isScanning: false,
     isSaving: false,
@@ -743,8 +748,11 @@ Page(withPageShare({
 
     if (!options.id) {
       const currentUser = getCurrentUser();
+      const selectedCategoryId = String(options.categoryId || DEFAULT_CATEGORY_ID).trim() || DEFAULT_CATEGORY_ID;
       this.setData({
-        currentUser
+        currentUser,
+        selectedCategoryId,
+        selectedCategoryName: getCategoryNameFromList(this.data.categories, selectedCategoryId)
       });
       return;
     }
@@ -950,6 +958,52 @@ Page(withPageShare({
     }
   },
 
+  onNameFocus() {
+    this.nameInputFocused = true;
+    this.nameLockedEditorScrollTop = Math.max(0, this.editorBodyScrollTop || this.data.editorScrollTop || 0);
+    this.restoreNameEditorScrollPosition();
+  },
+
+  onNameBlur() {
+    this.nameInputFocused = false;
+    this.nameLockedEditorScrollTop = null;
+    if (this.nameScrollTimers) {
+      this.nameScrollTimers.forEach((timer) => clearTimeout(timer));
+      this.nameScrollTimers = null;
+    }
+  },
+
+  onNameKeyboardHeightChange(event) {
+    const keyboardHeight = Number(event.detail && event.detail.height) || 0;
+    if (keyboardHeight > 0 && this.nameInputFocused) {
+      this.restoreNameEditorScrollPosition();
+    }
+  },
+
+  restoreNameEditorScrollPosition() {
+    if (!Number.isFinite(this.nameLockedEditorScrollTop)) {
+      return;
+    }
+
+    if (this.nameScrollTimers) {
+      this.nameScrollTimers.forEach((timer) => clearTimeout(timer));
+    }
+
+    const targetTop = Math.max(0, this.nameLockedEditorScrollTop);
+    this.nameScrollTimers = [0, 80, 180, 320, 520, 760, 1000, 1400].map((delay) => setTimeout(() => {
+      const bumpTop = targetTop > 0 ? targetTop - 1 : 1;
+      this.editorBodyScrollTop = targetTop;
+      this.setData({
+        editorScrollWithAnimation: false,
+        editorScrollTop: bumpTop
+      }, () => {
+        this.setData({
+          editorScrollTop: targetTop
+        });
+      });
+    }, delay));
+  },
+
   onMarkdownFocus(event) {
     if (this.data.markdownInputDisabled) {
       wx.hideKeyboard();
@@ -962,6 +1016,10 @@ Page(withPageShare({
 
     const keyboardHeight = Number(event.detail && event.detail.height) || 0;
     this.applyMarkdownKeyboardHeight(keyboardHeight);
+  },
+
+  onEditorBodyScroll(event) {
+    this.editorBodyScrollTop = Number(event.detail && event.detail.scrollTop) || 0;
   },
 
   onMarkdownBlur() {
@@ -1026,8 +1084,8 @@ Page(withPageShare({
 
     this.setData({
       markdownFocused: false,
-      editorBodyBottomPadding: 220,
-      editorKeyboardSpacerHeight: 220
+      editorScrollWithAnimation: false,
+      editorBodyBottomPadding: 120
     });
   },
 
@@ -1037,8 +1095,7 @@ Page(withPageShare({
 
     this.setData({
       markdownFocused: true,
-      editorBodyBottomPadding: bottomSpace,
-      editorKeyboardSpacerHeight: bottomSpace
+      editorBodyBottomPadding: bottomSpace
     }, () => {
       this.scrollMarkdownIntoView(safeHeight);
     });
@@ -1051,21 +1108,22 @@ Page(withPageShare({
 
     this.markdownScrollTimer = setTimeout(() => {
       const systemInfo = wx.getSystemInfoSync();
-      const visibleBottom = (systemInfo.windowHeight || 0) - keyboardHeight - 24;
       const query = wx.createSelectorQuery();
 
+      query.select('.editor-body').boundingClientRect();
       query.select('.editor-field-card--textarea').boundingClientRect();
-      query.selectViewport().scrollOffset();
       query.exec((result) => {
-        const rect = result && result[0];
-        const viewport = result && result[1];
+        const bodyRect = result && result[0];
+        const rect = result && result[1];
 
-        if (!rect || !viewport || !visibleBottom) {
+        if (!bodyRect || !rect) {
           return;
         }
 
+        const viewportBottom = (systemInfo.windowHeight || bodyRect.bottom || 0) - keyboardHeight - 24;
+        const visibleBottom = Math.min(bodyRect.bottom || viewportBottom, viewportBottom);
         const minTop = this.data.navSafeHeight + 12;
-        let nextScrollTop = viewport.scrollTop;
+        let nextScrollTop = this.editorBodyScrollTop || this.data.editorScrollTop || 0;
 
         if (rect.bottom > visibleBottom) {
           nextScrollTop += rect.bottom - visibleBottom + 24;
@@ -1073,9 +1131,10 @@ Page(withPageShare({
           nextScrollTop -= minTop - rect.top;
         }
 
-        wx.pageScrollTo({
-          scrollTop: Math.max(0, nextScrollTop),
-          duration: 180
+        this.editorBodyScrollTop = Math.max(0, nextScrollTop);
+        this.setData({
+          editorScrollTop: this.editorBodyScrollTop,
+          editorScrollWithAnimation: true
         });
       });
     }, 180);
@@ -1475,6 +1534,11 @@ Page(withPageShare({
   },
 
   onUnload() {
+    if (this.nameScrollTimers) {
+      this.nameScrollTimers.forEach((timer) => clearTimeout(timer));
+      this.nameScrollTimers = null;
+    }
+
     if (this.markdownScrollTimer) {
       clearTimeout(this.markdownScrollTimer);
       this.markdownScrollTimer = null;

@@ -1,5 +1,6 @@
 .editor-page {
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   background: #f1f4f6;
 }
 
@@ -51,20 +52,17 @@
 }
 
 .editor-body {
-  padding-left: 32rpx;
-  padding-right: 32rpx;
-  padding-bottom: 48rpx;
+  height: 100vh;
   box-sizing: border-box;
 }
 
-.editor-body::before {
-  content: '';
-  display: block;
-  height: 24rpx;
-}
-
-.editor-body > view + view {
-  margin-top: 16rpx;
+.editor-body__inner {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+  padding-right: 32rpx;
+  padding-left: 32rpx;
+  box-sizing: border-box;
 }
 
 .editor-upload-card,
@@ -276,10 +274,6 @@
   transform: rotate(45deg);
   box-sizing: border-box;
   flex-shrink: 0;
-}
-
-.editor-keyboard-spacer {
-  height: 240rpx;
 }
 
 .editor-footer {

@@ -29,6 +29,10 @@ function sanitizeAttachments(items = []) {
     .filter((item) => item.fileId);
 }
 
+function sanitizeContact(value) {
+  return String(value || '').trim().slice(0, 80) || '未填写';
+}
+
 function normalizeMailConfig() {
   return {
     host: String(mailConfig && mailConfig.host || '').trim(),
@@ -118,6 +122,7 @@ function buildMailHtml(record, linkMap) {
       <h2 style="margin:0 0 16px;font-size:20px;">家物小记收到一条新意见反馈</h2>
       <p style="margin:0 0 8px;"><strong>提交时间：</strong>${escapeHtml(formatDateTime(record.createdAt))}</p>
       <p style="margin:0 0 8px;"><strong>用户账号：</strong>${escapeHtml(record.username || '-')}</p>
+      <p style="margin:0 0 8px;"><strong>联系方式：</strong>${escapeHtml(record.contact || '未填写')}</p>
       <div style="margin:16px 0;padding:16px;background:#f7f9fa;border-radius:12px;">
         <div style="margin:0 0 8px;font-weight:600;">问题描述</div>
         <div style="white-space:pre-wrap;">${escapeHtml(record.content || '')}</div>
@@ -142,6 +147,7 @@ function buildMailText(record, linkMap) {
     '家物小记收到一条新意见反馈',
     `提交时间：${formatDateTime(record.createdAt)}`,
     `用户账号：${record.username || '-'}`,
+    `联系方式：${record.contact || '未填写'}`,
     '',
     '问题描述：',
     record.content || '',
@@ -207,6 +213,7 @@ async function submitFeedback(event) {
     username: String(event.ownerKey || '').trim(),
     userId: String(event.userId || '').trim(),
     receiverEmail: FEEDBACK_RECEIVER_EMAIL,
+    contact: sanitizeContact(event.contact),
     content: String(event.content || '').trim(),
     attachments: sanitizeAttachments(event.attachments || []),
     createdAt: now,

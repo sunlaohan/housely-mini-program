@@ -11,27 +11,12 @@ const BUILTIN_AVATARS = [
   { key: 'girl-2', src: '/assets/auth/girl-2.png' }
 ];
 
-function getNavMetrics() {
-  const systemInfo = wx.getSystemInfoSync();
-  const statusBarHeight = systemInfo.statusBarHeight || 20;
-  const windowWidth = systemInfo.windowWidth || 375;
-
-  if (!wx.getMenuButtonBoundingClientRect) {
-    return {
-      statusBarHeight,
-      navBarHeight: 44,
-      capsuleSafeWidth: 88
-    };
+function getUserRenderKey(user) {
+  if (!user) {
+    return '';
   }
 
-  const menuRect = wx.getMenuButtonBoundingClientRect();
-  const navBarHeight = (menuRect.top - statusBarHeight) * 2 + menuRect.height;
-
-  return {
-    statusBarHeight,
-    navBarHeight,
-    capsuleSafeWidth: windowWidth - menuRect.left + 8
-  };
+  return [user.id, user.username, user.avatar].map((value) => String(value || '')).join('|');
 }
 
 function normalizeFeedbackErrorMessage(error) {
@@ -65,9 +50,6 @@ Page(withPageShare({
   data: {
     currentUser: null,
     guestName: '游客用户',
-    statusBarHeight: 20,
-    navBarHeight: 44,
-    capsuleSafeWidth: 88,
     defaultAvatar: DEFAULT_AVATAR,
     avatarPanelVisible: false,
     avatarBuiltinOptions: BUILTIN_AVATARS,
@@ -90,21 +72,18 @@ Page(withPageShare({
     feedbackMaxCount: 9,
     feedbackForm: {
       content: '',
+      contact: '',
       attachments: []
     }
-  },
-
-  onLoad() {
-    this.setData(getNavMetrics());
   },
 
   onShow() {
     this.syncTabBar();
     const user = getCurrentUser();
     getApp().setCurrentUser(user);
-    this.setData({
-      currentUser: user
-    });
+    if (getUserRenderKey(user) !== getUserRenderKey(this.data.currentUser)) {
+      this.setData({ currentUser: user });
+    }
   },
 
   syncTabBar() {
@@ -113,8 +92,10 @@ Page(withPageShare({
     }
 
     const tabBar = this.getTabBar();
-    if (tabBar && typeof tabBar.setData === 'function') {
-      tabBar.setData({ selected: 1 });
+    if (tabBar && typeof tabBar.setTabBarState === 'function') {
+      tabBar.setTabBarState({ selected: 1, hidden: false });
+    } else if (tabBar && typeof tabBar.setData === 'function') {
+      tabBar.setData({ selected: 1, hidden: false });
     }
   },
 
@@ -411,6 +392,10 @@ Page(withPageShare({
     this.updateFeedbackField('content', event.detail.value);
   },
 
+  onFeedbackContactChange(event) {
+    this.updateFeedbackField('contact', event.detail.value);
+  },
+
   async addFeedbackAttachment() {
     if (this.data.feedbackSubmitting) {
       return;
@@ -521,6 +506,7 @@ Page(withPageShare({
     this.setData({
       feedbackForm: {
         content: '',
+        contact: '',
         attachments: []
       }
     });

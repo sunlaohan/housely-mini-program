@@ -3,7 +3,8 @@ const { envId } = require('./config/cloud');
 
 App({
   globalData: {
-    currentUser: null
+    currentUser: null,
+    tabBarSelected: null
   },
 
   onLaunch() {
@@ -21,7 +22,26 @@ App({
     });
 
     this.setupUpdateManager();
+    this.preloadTabBarIcons();
     this.globalData.currentUser = getCurrentUser();
+  },
+
+  preloadTabBarIcons() {
+    if (typeof wx.getImageInfo !== 'function') {
+      return;
+    }
+
+    [
+      '/assets/tabbar/home.png',
+      '/assets/tabbar/home-active.png',
+      '/assets/tabbar/profile.png',
+      '/assets/tabbar/profile-active.png'
+    ].forEach((src) => {
+      wx.getImageInfo({
+        src,
+        fail() {}
+      });
+    });
   },
 
   setupUpdateManager() {

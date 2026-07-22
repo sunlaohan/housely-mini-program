@@ -21,6 +21,7 @@ const {
 } = require('../../utils/categories');
 
 const CATEGORY_NAME_MAX_LENGTH = 16;
+const HOME_RELOAD_CACHE_TTL = 5 * 60 * 1000;
 const TIMELINE_ENTRY = 'timeline';
 const TIMELINE_SCENE = 1154;
 const SHARE_HIGHLIGHTS = [
@@ -305,6 +306,10 @@ function waitForNextRender(callback) {
   setTimeout(callback, 50);
 }
 
+function getUserKey(user) {
+  return String(user && (user.id || user.username) || '').trim();
+}
+
 Page(withPageShare({
   data: {
     currentUser: null,
@@ -374,6 +379,10 @@ Page(withPageShare({
 
     if (!currentUser) {
       getApp().setCurrentUser(null);
+      this.homeDocsLoaded = false;
+      this.homeLoadingDocs = false;
+      this.homeLoadedUserKey = '';
+      this.homeLoadedAt = 0;
       this.setData({
         currentUser: null,
         shareLandingVisible,
@@ -407,6 +416,30 @@ Page(withPageShare({
 
     const pendingCategoryId = String(read(KEYS.PENDING_HOME_CATEGORY_ID, '') || '').trim();
     const shouldShowReturnLoading = Boolean(pendingCategoryId);
+    if (this.canReuseHomeData(currentUser, pendingCategoryId)) {
+      getApp().setCurrentUser(currentUser);
+      this.setData({
+        currentUser,
+        shareLandingVisible: false,
+        isLoadingDocs: false,
+        contentRefreshing: false
+      }, () => {
+        this.syncTabBar();
+      });
+      return;
+    }
+
+    if (this.homeLoadingDocs && !shouldShowReturnLoading) {
+      getApp().setCurrentUser(currentUser);
+      this.setData({
+        currentUser,
+        shareLandingVisible: false
+      }, () => {
+        this.syncTabBar();
+      });
+      return;
+    }
+
     if (shouldShowReturnLoading) {
       wx.showLoading({ title: '加载中...', mask: true });
     }
@@ -439,6 +472,18 @@ Page(withPageShare({
     }
   },
 
+  canReuseHomeData(user, pendingCategoryId = '') {
+    if (pendingCategoryId || !user || !this.homeDocsLoaded) {
+      return false;
+    }
+
+    if (getUserKey(user) !== this.homeLoadedUserKey) {
+      return false;
+    }
+
+    return Date.now() - (this.homeLoadedAt || 0) < HOME_RELOAD_CACHE_TTL;
+  },
+
   async onListRefresh() {
     const currentUser = getCurrentUser();
     if (!currentUser || this.data.shareLandingVisible) {
@@ -462,6 +507,7 @@ Page(withPageShare({
       remove(KEYS.PENDING_HOME_CATEGORY_ID);
     }
 
+    this.homeLoadingDocs = true;
     try {
       const docs = await this.hydrateDocCovers((await getDocuments(user)).map(this.decorateDoc));
       const categories = await getCategories(user);
@@ -497,6 +543,9 @@ Page(withPageShare({
           });
         }
       });
+      this.homeDocsLoaded = true;
+      this.homeLoadedUserKey = getUserKey(user);
+      this.homeLoadedAt = Date.now();
       getApp().setCurrentUser(user);
     } catch (error) {
       this.setData({
@@ -507,6 +556,8 @@ Page(withPageShare({
         wx.hideLoading();
       }
       wx.showToast({ title: silent ? '刷新失败' : '加载文档失败', icon: 'none' });
+    } finally {
+      this.homeLoadingDocs = false;
     }
   },
 
@@ -574,7 +625,12 @@ Page(withPageShare({
     }
 
     const tabBar = this.getTabBar();
-    if (tabBar && typeof tabBar.setData === 'function') {
+    if (tabBar && typeof tabBar.setTabBarState === 'function') {
+      tabBar.setTabBarState({
+        selected: 0,
+        hidden: this.data.batchMode || this.data.shareLandingVisible
+      });
+    } else if (tabBar && typeof tabBar.setData === 'function') {
       tabBar.setData({
         selected: 0,
         hidden: this.data.batchMode || this.data.shareLandingVisible
@@ -623,11 +679,12 @@ Page(withPageShare({
       }
     });
 
-    const pendingFileIds = Array.from(new Set(
+    const allFileIds = Array.from(new Set(
       docs
         .map((doc) => doc.coverFileId)
         .filter(Boolean)
     ));
+    const pendingFileIds = allFileIds.filter((fileId) => !previousCoverUrlMap[fileId]);
 
     if (!pendingFileIds.length || !wx.cloud || typeof wx.cloud.getTempFileURL !== 'function') {
       return docs.map((doc) => ({
@@ -780,8 +837,9 @@ Page(withPageShare({
   },
 
   goAdd() {
+    const categoryId = String(this.data.selectedCategoryId || DEFAULT_CATEGORY_ID).trim() || DEFAULT_CATEGORY_ID;
     wx.navigateTo({
-      url: '/pages/editor/index'
+      url: `/pages/editor/index?categoryId=${encodeURIComponent(categoryId)}`
     });
   },
 
@@ -811,9 +869,7 @@ Page(withPageShare({
       swipeId: '',
       ...this.getBatchSelectionState(docs, this.data.selectedIds)
     }, () => {
-      setTimeout(() => {
-        this.syncCategoryMoreVisibility();
-      }, 120);
+      this.updateCategoryMoreVisibility(this.data.categoryScrollLeft, this.data.categoryScrollWidth);
     });
   },
 
@@ -1463,7 +1519,7 @@ Page(withPageShare({
         deleteDocuments(this.data.currentUser, this.data.selectedIds)
           .then(() => {
             this.exitBatchMode();
-            this.onShow();
+            return this.loadDocuments(this.data.currentUser, { silent: true });
           })
           .catch(() => {
             wx.showToast({ title: '批量删除失败', icon: 'none' });
@@ -1573,7 +1629,7 @@ Page(withPageShare({
         });
 
         deleteDocument(this.data.currentUser, id)
-          .then(() => this.onShow())
+          .then(() => this.loadDocuments(this.data.currentUser, { silent: true }))
           .catch(() => {
             wx.showToast({ title: '删除失败', icon: 'none' });
           })

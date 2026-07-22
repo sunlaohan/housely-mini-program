@@ -83,7 +83,7 @@ async function submitFeedback(user, payload) {
   const ownerKey = String(user && user.username || '').trim();
   const userId = String(user && user.id || '').trim();
   const content = String(payload.content || '').trim();
-  const legacyContact = ownerKey || userId || '未填写';
+  const contact = String(payload.contact || '').trim();
   const attachments = await uploadAttachments(payload.attachments || [], ownerKey);
 
   await checkDocumentContent({
@@ -100,9 +100,7 @@ async function submitFeedback(user, payload) {
         action: 'submit',
         ownerKey,
         userId,
-        // Keep old deployed feedback cloud functions working after the contact
-        // field was removed from the UI.
-        contact: legacyContact,
+        contact: contact || '未填写',
         content,
         attachments: attachments.map((attachment) => ({
           fileName: attachment.fileName,

@@ -1,4 +1,4 @@
-<view class="editor-page">
+<view class="editor-page" style="height: {{editorViewportHeight}}px;">
   <view class="editor-navbar" style="padding-top: {{statusBarHeight}}px;">
     <view class="editor-navbar__bar" style="height: {{navBarHeight}}px; padding-right: {{capsuleSafeWidth}}px;">
       <view class="editor-navbar__back" bindtap="goBack">
@@ -8,7 +8,20 @@
     </view>
   </view>
 
-  <view class="editor-body" style="padding-top: {{navSafeHeight}}px; padding-bottom: {{editorBodyBottomPadding}}px;">
+  <scroll-view
+    class="editor-body"
+    scroll-y
+    enhanced
+    show-scrollbar="{{false}}"
+    scroll-top="{{editorScrollTop}}"
+    scroll-with-animation="{{editorScrollWithAnimation}}"
+    bindscroll="onEditorBodyScroll"
+    style="height: {{editorViewportHeight}}px;"
+  >
+    <view
+      class="editor-body__inner"
+      style="padding-top: calc({{navSafeHeight}}px + 24rpx); padding-bottom: {{editorBodyBottomPadding}}px;"
+    >
     <view class="editor-upload-card">
       <view class="editor-section-title">拍照/上传图片</view>
 
@@ -61,7 +74,7 @@
       </view>
     </view>
 
-    <view class="editor-field-card">
+    <view class="editor-field-card editor-field-card--name">
       <view class="editor-field-card__label">
         <text class="editor-field-card__required">*</text>
         <text>记忆名称</text>
@@ -72,6 +85,11 @@
         placeholder-class="editor-field-card__placeholder"
         data-field="name"
         bindinput="onInput"
+        bindfocus="onNameFocus"
+        bindblur="onNameBlur"
+        bindkeyboardheightchange="onNameKeyboardHeightChange"
+        cursor-spacing="0"
+        adjust-position="{{false}}"
         value="{{name}}"
       />
     </view>
@@ -111,8 +129,8 @@
         value="{{markdown}}"
       />
     </view>
-    <view class="editor-keyboard-spacer" style="height: {{editorKeyboardSpacerHeight}}px;"></view>
-  </view>
+    </view>
+  </scroll-view>
 
   <cover-view wx:if="{{!markdownFocused}}" class="editor-footer" bindtouchstart="prepareFooterAction">
     <cover-view class="editor-footer__button {{isScanning || isSaving ? 'editor-footer__button--disabled' : ''}}" bindtap="saveDocument">

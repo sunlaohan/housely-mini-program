@@ -1,11 +1,4 @@
 <view class="profile-page">
-  <view class="profile-navbar" style="padding-top: {{statusBarHeight}}px;">
-    <view class="profile-navbar__bar" style="height: {{navBarHeight}}px; padding-right: {{capsuleSafeWidth}}px;">
-      <view class="profile-navbar__spacer"></view>
-      <view class="profile-navbar__title">家物小记</view>
-    </view>
-  </view>
-
   <view wx:if="{{currentUser}}" class="profile-body">
     <view class="profile-user" bindtap="pickAvatar">
       <image class="profile-avatar" src="{{currentUser.avatar || defaultAvatar}}" mode="aspectFill" catchtap="pickAvatar"></image>
@@ -55,13 +48,29 @@
           <form-textarea
             label="问题描述"
             required="{{true}}"
-            placeholder="请输入"
+            placeholder="请尽量详细描述你遇到的问题，便于我们定位和修复"
             value="{{feedbackForm.content}}"
             maxlength="200"
             show-divider="{{true}}"
             disabled="{{feedbackSubmitting}}"
             bind:change="onFeedbackContentChange"
           />
+          <view class="feedback-contact">
+            <view class="feedback-contact__label-row">
+              <text class="feedback-contact__label">联系方式（选填）</text>
+            </view>
+            <view class="feedback-contact__hint">仅用于本次问题跟进，不填写也可提交</view>
+            <input
+              class="feedback-contact__input"
+              value="{{feedbackForm.contact}}"
+              placeholder="微信号、手机号或邮箱，非必填"
+              placeholder-class="feedback-contact__placeholder"
+              maxlength="80"
+              disabled="{{feedbackSubmitting}}"
+              cursor-spacing="24"
+              bindinput="onFeedbackContactChange"
+            />
+          </view>
           <media-uploader
             label="问题图片/视频"
             items="{{feedbackForm.attachments}}"
@@ -180,7 +189,7 @@
 
       <scroll-view class="about-scroll" scroll-y enhanced show-scrollbar="{{false}}">
         <view class="about-text privacy-text">
-          <text>我们理解，你保存的家庭资料可能包含重要且私密的信息。家物小记会尽量减少不必要的数据收集，并把数据控制权交还给你。\n\n数据保存在哪里\n\n你主动创建的记忆、分类、识别结果及上传的图片，会保存在本小程序使用的微信云开发环境中，用于向你提供跨设备查看、搜索、编辑和管理服务。\n\n我们如何使用数据\n\n这些数据仅用于实现家物小记的核心功能，例如图片文字识别、内容安全校验、记忆保存与搜索。我们不会主动公开你的内容，也不会将其出售或用于广告画像。\n\n谁可以访问你的数据\n\n只有当前登录账号可以在小程序内访问和查看该账号保存的数据。其他普通用户无权访问、查看或搜索你的记忆、图片及识别内容，也不会在任何公开页面看到这些数据。\n\n我们如何保护数据\n\n数据请求通过微信小程序及微信云开发提供的安全链路传输。小程序不会在页面中展示其他用户的数据，也不会要求你提供与功能无关的敏感权限。请妥善保管自己的微信账号，并避免上传银行卡密码、支付密码等无需保存的高度敏感信息。\n\n你可以管理和删除数据\n\n你可以随时编辑或删除单条记忆。删除记忆时，与该记忆关联的云端记录和文件会一并清理；注销账号时，系统会清理该账号关联的记忆、分类、识别任务及上传文件。删除后的数据无法恢复，请操作前仔细确认。\n\n我们坚持的原则\n\n只收集实现功能所必需的信息；只在提供服务所需的范围内使用；不主动向无关第三方共享。若你对隐私或数据处理有疑问，可以通过“意见反馈”联系我们。</text>
+          <text>我们理解，你保存的家庭资料可能包含重要且私密的信息。家物小记会尽量减少不必要的数据收集，并把数据控制权交还给你。\n\n数据保存在哪里\n\n你主动创建的记忆、分类、识别结果及上传的图片，会保存在本小程序使用的微信云开发环境中，用于向你提供跨设备查看、搜索、编辑和管理服务。\n\n我们如何使用数据\n\n这些数据仅用于实现家物小记的核心功能，例如图片文字识别、内容安全校验、记忆保存与搜索。意见反馈中的联系方式为选填，仅在你主动填写时用于本次问题跟进。我们不会主动公开你的内容，也不会将其出售或用于广告画像。\n\n谁可以访问你的数据\n\n只有当前登录账号可以在小程序内访问和查看该账号保存的数据。其他普通用户无权访问、查看或搜索你的记忆、图片及识别内容，也不会在任何公开页面看到这些数据。\n\n我们如何保护数据\n\n数据请求通过微信小程序及微信云开发提供的安全链路传输。小程序不会在页面中展示其他用户的数据，也不会要求你提供与功能无关的敏感权限。请妥善保管自己的微信账号，并避免上传银行卡密码、支付密码等无需保存的高度敏感信息。\n\n你可以管理和删除数据\n\n你可以随时编辑或删除单条记忆。删除记忆时，与该记忆关联的云端记录和文件会一并清理；注销账号时，系统会清理该账号关联的记忆、分类、识别任务及上传文件。删除后的数据无法恢复，请操作前仔细确认。\n\n我们坚持的原则\n\n只收集实现功能所必需的信息；只在提供服务所需的范围内使用；不主动向无关第三方共享。若你对隐私或数据处理有疑问，可以通过“意见反馈”联系我们。</text>
         </view>
       </scroll-view>
     </view>
