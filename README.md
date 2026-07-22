@@ -4,7 +4,8 @@
 
 当前版本已经不是早期的“登录注册原型”，而是一套包含登录、OCR 建稿、文档管理、文档阅读、个人中心、反馈闭环的完整小程序流程。
 小程序体验二维码：
-<img width="430" height="430" alt="gh_cea053894d45_430" src="https://github.com/user-attachments/assets/cf84616f-71d4-43b4-aa4c-ea3bddef65d2" /># 
+
+<img width="430" height="430" alt="小程序体验二维码" src="https://github.com/user-attachments/assets/cf84616f-71d4-43b4-aa4c-ea3bddef65d2" />
 
 
 ## 当前功能
