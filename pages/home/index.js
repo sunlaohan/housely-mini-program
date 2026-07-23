@@ -780,8 +780,9 @@ Page(withPageShare({
   },
 
   goAdd() {
+    const categoryId = encodeURIComponent(this.data.selectedCategoryId || DEFAULT_CATEGORY_ID);
     wx.navigateTo({
-      url: '/pages/editor/index'
+      url: `/pages/editor/index?categoryId=${categoryId}`
     });
   },
 

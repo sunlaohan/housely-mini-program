@@ -3,7 +3,8 @@ const { envId } = require('./config/cloud');
 
 App({
   globalData: {
-    currentUser: null
+    currentUser: null,
+    pendingTabRoute: ''
   },
 
   onLaunch() {

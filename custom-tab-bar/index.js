@@ -20,6 +20,18 @@ Component({
 
   lifetimes: {
     attached() {
+      const app = getApp();
+      const pendingRoute = app.globalData && app.globalData.pendingTabRoute;
+      this.syncSelected(pendingRoute || this.getCurrentRoute());
+
+      if (pendingRoute && app.globalData) {
+        app.globalData.pendingTabRoute = '';
+      }
+    }
+  },
+
+  pageLifetimes: {
+    show() {
       this.syncSelected();
     }
   },
@@ -60,12 +72,17 @@ Component({
         return;
       }
 
-      this.setData({
-        selected: nextSelected
-      });
+      // The target tab bar is a fresh component instance. Pass its selected
+      // route before switching so it never renders one frame with the home
+      // tab's default selection.
+      getApp().globalData.pendingTabRoute = path;
 
       wx.switchTab({
-        url: `/${path}`
+        url: `/${path}`,
+        fail: () => {
+          getApp().globalData.pendingTabRoute = '';
+          this.syncSelected();
+        }
       });
     }
   }

@@ -206,19 +206,20 @@
   box-sizing: border-box;
 }
 
-.editor-field-card__textarea {
-  display: block;
+.editor-field-card__content {
   width: 100%;
-  min-height: 520rpx;
-  padding: 0;
-  overflow: visible;
+  min-height: 400rpx;
+  padding: 4rpx 0;
+  box-sizing: border-box;
+}
+
+.editor-field-card__content-text {
+  display: block;
   color: #1b2129;
   font-size: 28rpx;
   line-height: 44rpx;
   white-space: pre-wrap;
   word-break: break-all;
-  caret-color: #1b2129;
-  box-sizing: border-box;
 }
 
 .editor-field-card__placeholder {
@@ -226,7 +227,7 @@
 }
 
 .editor-field-card--textarea {
-  min-height: 628rpx;
+  min-height: 508rpx;
 }
 
 .editor-category-card {
@@ -592,4 +593,92 @@
 
 .category-edit-dialog__button--confirm {
   color: #246fe5;
+}
+
+.editor-leave-dialog {
+  position: fixed;
+  z-index: 12000;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48rpx;
+  box-sizing: border-box;
+}
+
+.editor-leave-dialog__mask {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.editor-leave-dialog__panel {
+  position: relative;
+  width: 100%;
+  max-width: 580rpx;
+  overflow: hidden;
+  border-radius: 24rpx;
+  background: #ffffff;
+  box-sizing: border-box;
+}
+
+.editor-leave-dialog__content {
+  padding: 48rpx 48rpx 40rpx;
+  box-sizing: border-box;
+}
+
+.editor-leave-dialog__title {
+  color: #1b2129;
+  font-size: 34rpx;
+  font-weight: 600;
+  line-height: 52rpx;
+  text-align: center;
+}
+
+.editor-leave-dialog__message {
+  margin-top: 16rpx;
+  color: #7b8591;
+  font-size: 30rpx;
+  line-height: 44rpx;
+  text-align: center;
+}
+
+.editor-leave-dialog__actions {
+  display: flex;
+  flex-direction: column;
+  border-top: 1rpx solid #e8ecf0;
+}
+
+.editor-leave-dialog__button {
+  height: 96rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32rpx;
+  font-weight: 500;
+  line-height: 44rpx;
+  background: #ffffff;
+  box-sizing: border-box;
+}
+
+.editor-leave-dialog__button + .editor-leave-dialog__button {
+  border-top: 1rpx solid #e8ecf0;
+}
+
+.editor-leave-dialog__button--discard {
+  color: #f55047;
+}
+
+.editor-leave-dialog__button--save {
+  color: #576b95;
+}
+
+.editor-leave-dialog__button--cancel {
+  color: #626c78;
 }

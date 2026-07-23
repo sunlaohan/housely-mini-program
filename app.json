@@ -5,6 +5,7 @@
     "pages/home/index",
     "pages/document/index",
     "pages/editor/index",
+    "pages/markdown-editor/index",
     "pages/profile/index"
   ],
   "lazyCodeLoading": "requiredComponents",

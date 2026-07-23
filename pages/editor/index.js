@@ -230,6 +230,27 @@ function getCategoryByNameFromList(categories = [], name = '') {
   return categories.find((category) => category.name === normalizedName) || null;
 }
 
+function getFormSnapshot(data) {
+  return JSON.stringify({
+    name: String(data.name || ''),
+    description: String(data.description || ''),
+    markdown: String(data.markdown || ''),
+    selectedCategoryId: String(data.selectedCategoryId || DEFAULT_CATEGORY_ID),
+    sourceFiles: normalizePageSources(data.sourceFiles).map((source) => ({
+      key: source.key,
+      fileName: source.fileName,
+      type: source.type,
+      size: source.size,
+      tempFilePath: source.tempFilePath,
+      fileId: source.fileId,
+      cloudPath: source.cloudPath
+    })),
+    ocrTaskId: String(data.ocrTaskId || ''),
+    ocrProvider: String(data.ocrProvider || ''),
+    ocrStatus: String(data.ocrStatus || '')
+  });
+}
+
 function limitCategoryName(value = '') {
   return Array.from(String(value || '')).slice(0, CATEGORY_NAME_MAX_LENGTH).join('');
 }
@@ -257,6 +278,7 @@ Page(withPageShare({
     selectedCategoryName: '默认分类',
     categoryPanelVisible: false,
     categoryEditDialogVisible: false,
+    leaveConfirmVisible: false,
     categoryEditId: '',
     categoryEditName: '',
     categoryEditFocus: false,
@@ -277,6 +299,7 @@ Page(withPageShare({
     description: '',
     markdown: '',
     markdownFocused: false,
+    markdownFocusRequested: false,
     markdownInputDisabled: false,
     editorBodyBottomPadding: 220,
     editorKeyboardSpacerHeight: 220,
@@ -302,6 +325,10 @@ Page(withPageShare({
       categories,
       selectedCategoryId: selectedCategory.id,
       selectedCategoryName: selectedCategory.name
+    }, () => {
+      if (!this._isEditingExistingDocument) {
+        this.captureInitialFormSnapshot();
+      }
     });
 
     if (this.data.mode === 'edit') {
@@ -736,6 +763,7 @@ Page(withPageShare({
   },
 
   onLoad(options) {
+    this._isEditingExistingDocument = Boolean(options.id);
     this.setData(getNavMetrics());
     if (options.id) {
       this.setData({ pageTitle: '编辑' });
@@ -744,7 +772,8 @@ Page(withPageShare({
     if (!options.id) {
       const currentUser = getCurrentUser();
       this.setData({
-        currentUser
+        currentUser,
+        selectedCategoryId: String(options.categoryId || DEFAULT_CATEGORY_ID).trim() || DEFAULT_CATEGORY_ID
       });
       return;
     }
@@ -777,6 +806,8 @@ Page(withPageShare({
           description: doc.description,
           markdown: doc.markdown,
           mode: 'edit'
+        }, () => {
+          this.captureInitialFormSnapshot();
         });
       } catch (error) {
         wx.showToast({ title: '加载文件失败', icon: 'none' });
@@ -817,6 +848,53 @@ Page(withPageShare({
   },
 
   goBack() {
+    if (this.data.isSaving || this.data.isScanning) {
+      wx.showToast({ title: '处理中，请稍候', icon: 'none' });
+      return;
+    }
+
+    if (this._isLeaving) {
+      this.leaveEditor();
+      return;
+    }
+
+    if (!this.hasUnsavedChanges()) {
+      this._isLeaving = true;
+      this.leaveEditor();
+      return;
+    }
+
+    this.setData({ leaveConfirmVisible: true });
+  },
+
+  cancelLeave() {
+    this.setData({ leaveConfirmVisible: false });
+  },
+
+  discardAndLeave() {
+    this._isLeaving = true;
+    this.setData({ leaveConfirmVisible: false }, () => {
+      this.leaveEditor();
+    });
+  },
+
+  saveAndLeave() {
+    this.setData({ leaveConfirmVisible: false }, () => {
+      this.saveDocument();
+    });
+  },
+
+  captureInitialFormSnapshot() {
+    if (!this._initialFormSnapshot) {
+      this._initialFormSnapshot = getFormSnapshot(this.data);
+    }
+  },
+
+  hasUnsavedChanges() {
+    return Boolean(this._initialFormSnapshot) && this._initialFormSnapshot !== getFormSnapshot(this.data);
+  },
+
+  leaveEditor() {
     const pages = getCurrentPages();
     if (pages.length > 1) {
       wx.navigateBack();
@@ -826,6 +904,15 @@ Page(withPageShare({
     wx.switchTab({
       url: '/pages/home/index'
     });
+  },
+
+  onBackPress() {
+    if (this._isLeaving) {
+      return false;
+    }
+
+    this.goBack();
+    return true;
   },
 
   onInput(event) {
@@ -841,6 +928,23 @@ Page(withPageShare({
 
     this.setData({
       [field]: value
+    });
+  },
+
+  openMarkdownEditor() {
+    if (this.data.markdownInputDisabled || this.data.isSaving) {
+      return;
+    }
+
+    wx.navigateTo({
+      url: '/pages/markdown-editor/index',
+      success: (result) => {
+        const eventChannel = result.eventChannel;
+        eventChannel.on('saveMarkdown', ({ value }) => {
+          this.setData({ markdown: String(value || '') });
+        });
+        eventChannel.emit('initMarkdown', { value: this.data.markdown });
+      }
     });
   },
 
@@ -950,8 +1054,15 @@ Page(withPageShare({
     }
   },
 
+  requestMarkdownFocus() {
+    if (!this.data.markdownInputDisabled && !this.data.markdownFocusRequested) {
+      this.setData({ markdownFocusRequested: true });
+    }
+  },
+
   onMarkdownFocus(event) {
     if (this.data.markdownInputDisabled) {
+      this.setData({ markdownFocusRequested: false });
       wx.hideKeyboard();
       setTimeout(() => {
         wx.hideKeyboard();
@@ -960,17 +1071,38 @@ Page(withPageShare({
       return;
     }
 
+    // Keep the native textarea focus controlled after the first tap. Without
+    // this, the keyboard can open while the textarea loses its caret during
+    // the layout update below.
+    if (!this.data.markdownFocusRequested) {
+      this.setData({ markdownFocusRequested: true });
+    }
+
     const keyboardHeight = Number(event.detail && event.detail.height) || 0;
     this.applyMarkdownKeyboardHeight(keyboardHeight);
   },
 
   onMarkdownBlur() {
+    this.setData({ markdownFocusRequested: false });
+    this.restoreEditorFooter();
+  },
+
+  onMarkdownConfirm() {
+    this.setData({ markdownFocusRequested: false });
+    wx.hideKeyboard();
     this.restoreEditorFooter();
   },
 
   onMarkdownKeyboardHeightChange(event) {
     const keyboardHeight = Number(event.detail && event.detail.height) || 0;
     if (keyboardHeight <= 0) {
+      // The first keyboard-height callback can report 0 before the keyboard
+      // has finished opening. Do not mount the footer over the active input
+      // in that intermediate state; blur is the reliable end signal.
+      if (this.data.markdownFocusRequested || this.data.markdownFocused) {
+        return;
+      }
+
       this.restoreEditorFooter();
       return;
     }
@@ -1019,11 +1151,6 @@ Page(withPageShare({
   },
 
   restoreEditorFooter() {
-    if (this.markdownScrollTimer) {
-      clearTimeout(this.markdownScrollTimer);
-      this.markdownScrollTimer = null;
-    }
-
     this.setData({
       markdownFocused: false,
       editorBodyBottomPadding: 220,
@@ -1039,46 +1166,7 @@ Page(withPageShare({
       markdownFocused: true,
       editorBodyBottomPadding: bottomSpace,
       editorKeyboardSpacerHeight: bottomSpace
-    }, () => {
-      this.scrollMarkdownIntoView(safeHeight);
     });
-  },
-
-  scrollMarkdownIntoView(keyboardHeight = 0) {
-    if (this.markdownScrollTimer) {
-      clearTimeout(this.markdownScrollTimer);
-    }
-
-    this.markdownScrollTimer = setTimeout(() => {
-      const systemInfo = wx.getSystemInfoSync();
-      const visibleBottom = (systemInfo.windowHeight || 0) - keyboardHeight - 24;
-      const query = wx.createSelectorQuery();
-
-      query.select('.editor-field-card--textarea').boundingClientRect();
-      query.selectViewport().scrollOffset();
-      query.exec((result) => {
-        const rect = result && result[0];
-        const viewport = result && result[1];
-
-        if (!rect || !viewport || !visibleBottom) {
-          return;
-        }
-
-        const minTop = this.data.navSafeHeight + 12;
-        let nextScrollTop = viewport.scrollTop;
-
-        if (rect.bottom > visibleBottom) {
-          nextScrollTop += rect.bottom - visibleBottom + 24;
-        } else if (rect.top < minTop) {
-          nextScrollTop -= minTop - rect.top;
-        }
-
-        wx.pageScrollTo({
-          scrollTop: Math.max(0, nextScrollTop),
-          duration: 180
-        });
-      });
-    }, 180);
   },
 
   updateOcrProgress(progress) {
@@ -1475,11 +1563,6 @@ Page(withPageShare({
   },
 
   onUnload() {
-    if (this.markdownScrollTimer) {
-      clearTimeout(this.markdownScrollTimer);
-      this.markdownScrollTimer = null;
-    }
-
     if (this.categoryTouchGuardTimer) {
       clearTimeout(this.categoryTouchGuardTimer);
       this.categoryTouchGuardTimer = null;
@@ -1489,5 +1572,6 @@ Page(withPageShare({
       clearTimeout(this.markdownInputRestoreTimer);
       this.markdownInputRestoreTimer = null;
     }
+
   }
 }));

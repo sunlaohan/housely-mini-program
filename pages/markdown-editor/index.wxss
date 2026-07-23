@@ -1,0 +1,167 @@
+page {
+  background: #f1f4f6;
+}
+
+.markdown-editor-page {
+  min-height: 100vh;
+  background: #f1f4f6;
+}
+
+.markdown-editor-action {
+  position: fixed;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8rpx;
+  min-width: 112rpx;
+  height: 68rpx;
+  padding: 0 20rpx;
+  color: #626c78;
+  font-size: 28rpx;
+  line-height: 44rpx;
+  background: #ffffff;
+  border: 1rpx solid #f1f4f6;
+  border-radius: 999rpx;
+  box-sizing: border-box;
+}
+
+.markdown-editor-action--exit {
+  left: 32rpx;
+}
+
+.markdown-editor-action--save {
+  right: 32rpx;
+  color: #1b2129;
+  font-weight: 600;
+}
+
+.markdown-editor-action__icon {
+  width: 28rpx;
+  height: 28rpx;
+  flex-shrink: 0;
+}
+
+.markdown-editor-input,
+.markdown-editor-preview {
+  position: fixed;
+  left: 32rpx;
+  right: 32rpx;
+  padding: 24rpx 32rpx 48rpx;
+  background: #ffffff;
+  border-radius: 16rpx 16rpx 0 0;
+  box-sizing: border-box;
+}
+
+.markdown-editor-input {
+  width: auto;
+  color: #2e3742;
+  font-size: 28rpx;
+  line-height: 44rpx;
+  caret-color: #2e3742;
+}
+
+.markdown-editor-input__placeholder {
+  color: #c4c9cf;
+}
+
+.markdown-editor-preview {
+  bottom: 0;
+}
+
+.markdown-editor-preview__text {
+  display: block;
+  min-height: 100%;
+  color: #2e3742;
+  font-size: 28rpx;
+  line-height: 44rpx;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.markdown-editor-leave-dialog {
+  position: fixed;
+  z-index: 10;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48rpx;
+  box-sizing: border-box;
+}
+
+.markdown-editor-leave-dialog__mask {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.markdown-editor-leave-dialog__panel {
+  position: relative;
+  width: 100%;
+  max-width: 580rpx;
+  overflow: hidden;
+  border-radius: 24rpx;
+  background: #ffffff;
+}
+
+.markdown-editor-leave-dialog__content {
+  padding: 48rpx 48rpx 40rpx;
+  box-sizing: border-box;
+}
+
+.markdown-editor-leave-dialog__title {
+  color: #1b2129;
+  font-size: 34rpx;
+  font-weight: 600;
+  line-height: 52rpx;
+  text-align: center;
+}
+
+.markdown-editor-leave-dialog__message {
+  margin-top: 16rpx;
+  color: #7b8591;
+  font-size: 30rpx;
+  line-height: 44rpx;
+  text-align: center;
+}
+
+.markdown-editor-leave-dialog__actions {
+  display: flex;
+  flex-direction: column;
+  border-top: 1rpx solid #e8ecf0;
+}
+
+.markdown-editor-leave-dialog__button {
+  height: 96rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32rpx;
+  font-weight: 500;
+  line-height: 44rpx;
+  background: #ffffff;
+  box-sizing: border-box;
+}
+
+.markdown-editor-leave-dialog__button + .markdown-editor-leave-dialog__button {
+  border-top: 1rpx solid #e8ecf0;
+}
+
+.markdown-editor-leave-dialog__button--discard {
+  color: #f55047;
+}
+
+.markdown-editor-leave-dialog__button--save {
+  color: #576b95;
+}
+
+.markdown-editor-leave-dialog__button--cancel {
+  color: #626c78;
+}

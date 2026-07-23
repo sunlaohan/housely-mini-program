@@ -1,0 +1,48 @@
+<view class="markdown-editor-page">
+  <view class="markdown-editor-action markdown-editor-action--exit" style="top: {{actionTop}}px;" bindtap="exitEditor">
+    <image class="markdown-editor-action__icon" src="../../assets/auth/cross.svg" mode="aspectFit" />
+    <text>退出</text>
+  </view>
+  <view class="markdown-editor-action markdown-editor-action--save" style="top: {{actionTop}}px;" bindtap="saveEditor">
+    <image class="markdown-editor-action__icon" src="../../assets/auth/passed.svg" mode="aspectFit" />
+    <text>保存</text>
+  </view>
+
+  <view wx:if="{{leaveConfirmVisible}}" class="markdown-editor-leave-dialog" catchtouchmove="noop">
+    <view class="markdown-editor-leave-dialog__mask" catchtap="cancelLeave"></view>
+    <view class="markdown-editor-leave-dialog__panel" catchtap="noop">
+      <view class="markdown-editor-leave-dialog__content">
+        <view class="markdown-editor-leave-dialog__title">确认离开？</view>
+        <view class="markdown-editor-leave-dialog__message">当前修改尚未保存</view>
+      </view>
+      <view class="markdown-editor-leave-dialog__actions">
+        <view class="markdown-editor-leave-dialog__button markdown-editor-leave-dialog__button--discard" catchtap="discardAndExit">不保存退出</view>
+        <view class="markdown-editor-leave-dialog__button markdown-editor-leave-dialog__button--save" catchtap="saveAndExit">保存并退出</view>
+        <view class="markdown-editor-leave-dialog__button markdown-editor-leave-dialog__button--cancel" catchtap="cancelLeave">取消</view>
+      </view>
+    </view>
+  </view>
+
+  <textarea
+    wx:if="{{editing}}"
+    class="markdown-editor-input"
+    style="top: {{editorContentTop}}px; height: {{editorHeight}}px;"
+    value="{{value}}"
+    maxlength="-1"
+    placeholder="输入描述/识别内容"
+    placeholder-class="markdown-editor-input__placeholder"
+    focus="{{inputFocus}}"
+    fixed="{{true}}"
+    hold-keyboard="{{true}}"
+    adjust-position="{{false}}"
+    show-confirm-bar="{{true}}"
+    confirm-type="done"
+    bindinput="onInput"
+    bindconfirm="finishEditing"
+    bindkeyboardheightchange="onKeyboardHeightChange"
+  />
+
+  <scroll-view wx:else class="markdown-editor-preview" style="top: {{editorContentTop}}px;" scroll-y bindtap="resumeEditing">
+    <text class="markdown-editor-preview__text">{{value}}</text>
+  </scroll-view>
+</view>

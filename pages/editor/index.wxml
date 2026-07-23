@@ -93,23 +93,10 @@
       <view class="editor-field-card__label">
         <text>描述/识别内容</text>
       </view>
-      <textarea
-        class="editor-field-card__textarea"
-        maxlength="-1"
-        placeholder="上传图片后的识别文本会显示在这里"
-        placeholder-class="editor-field-card__placeholder"
-        data-field="markdown"
-        bindinput="onInput"
-        bindfocus="onMarkdownFocus"
-        bindblur="onMarkdownBlur"
-        bindkeyboardheightchange="onMarkdownKeyboardHeightChange"
-        cursor-spacing="180"
-        adjust-position="{{false}}"
-        auto-height="{{true}}"
-        disabled="{{markdownInputDisabled}}"
-        show-confirm-bar="{{true}}"
-        value="{{markdown}}"
-      />
+      <view class="editor-field-card__content" bindtap="openMarkdownEditor">
+        <text wx:if="{{markdown}}" class="editor-field-card__content-text">{{markdown}}</text>
+        <text wx:else class="editor-field-card__placeholder">上传图片后的识别文本会显示在这里</text>
+      </view>
     </view>
     <view class="editor-keyboard-spacer" style="height: {{editorKeyboardSpacerHeight}}px;"></view>
   </view>
@@ -119,6 +106,21 @@
       {{isSaving ? '保存中...' : (mode === 'edit' ? '保存修改' : '确定')}}
     </cover-view>
   </cover-view>
+
+  <view wx:if="{{leaveConfirmVisible}}" class="editor-leave-dialog" catchtouchmove="noop">
+    <view class="editor-leave-dialog__mask" catchtap="cancelLeave"></view>
+    <view class="editor-leave-dialog__panel" catchtap="noop">
+      <view class="editor-leave-dialog__content">
+        <view class="editor-leave-dialog__title">确认离开？</view>
+        <view class="editor-leave-dialog__message">当前修改尚未保存</view>
+      </view>
+      <view class="editor-leave-dialog__actions">
+        <view class="editor-leave-dialog__button editor-leave-dialog__button--discard" catchtap="discardAndLeave">不保存退出</view>
+        <view class="editor-leave-dialog__button editor-leave-dialog__button--save" catchtap="saveAndLeave">保存并退出</view>
+        <view class="editor-leave-dialog__button editor-leave-dialog__button--cancel" catchtap="cancelLeave">取消</view>
+      </view>
+    </view>
+  </view>
 
   <bottom-sheet visible="{{categoryPanelVisible}}" bind:close="closeCategoryPanel">
     <view class="category-sheet">
