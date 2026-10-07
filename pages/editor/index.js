@@ -222,7 +222,7 @@ function getOcrFallbackMessage(error) {
 
 function getCategoryNameFromList(categories = [], categoryId = DEFAULT_CATEGORY_ID) {
   const category = categories.find((item) => item.id === categoryId);
-  return category ? category.name : '默认分类';
+  return category ? category.name : '未分类';
 }
 
 function getCategoryByNameFromList(categories = [], name = '') {
@@ -275,7 +275,7 @@ Page(withPageShare({
     ocrMessage: '',
     categories: [getDefaultCategory()],
     selectedCategoryId: DEFAULT_CATEGORY_ID,
-    selectedCategoryName: '默认分类',
+    selectedCategoryName: '未分类',
     categoryPanelVisible: false,
     categoryEditDialogVisible: false,
     leaveConfirmVisible: false,
@@ -528,7 +528,7 @@ Page(withPageShare({
 
     wx.showModal({
       title: '删除提示',
-      content: '被删除分类下如果还有记忆会自动移动到【默认分类】，是否确认删除',
+      content: '被删除分类下如果还有记忆会自动移动到【未分类】，是否确认删除',
       confirmText: '删除',
       cancelText: '取消',
       confirmColor: '#f55047',
@@ -1500,7 +1500,7 @@ Page(withPageShare({
           sourceFileId: nextSourceFileId,
           sourceCloudPath: primarySource ? primarySource.cloudPath : '',
           categoryId: selectedCategoryId || DEFAULT_CATEGORY_ID,
-          categoryName: selectedCategoryName || '默认分类',
+          categoryName: selectedCategoryName || '未分类',
           ocrTaskId,
           ocrProvider,
           ocrStatus
@@ -1517,7 +1517,7 @@ Page(withPageShare({
           sourceFileId: nextSourceFileId,
           sourceCloudPath: primarySource ? primarySource.cloudPath : '',
           categoryId: selectedCategoryId || DEFAULT_CATEGORY_ID,
-          categoryName: selectedCategoryName || '默认分类',
+          categoryName: selectedCategoryName || '未分类',
           ocrTaskId,
           ocrProvider,
           ocrStatus
@@ -1525,7 +1525,8 @@ Page(withPageShare({
         cacheCoverPreview(uploadedSourceFiles, savedDoc && savedDoc.id);
       }
 
-      write(KEYS.PENDING_HOME_CATEGORY_ID, selectedCategoryId || DEFAULT_CATEGORY_ID);
+      write(KEYS.PENDING_HOME_CATEGORY_ID, 'all');
+      write(KEYS.PENDING_HOME_REFRESH, Date.now());
       wx.showToast({ title: mode === 'edit' ? '已更新' : '已保存', icon: 'success' });
       setTimeout(() => {
         wx.switchTab({

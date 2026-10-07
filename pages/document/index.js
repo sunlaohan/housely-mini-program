@@ -1,6 +1,6 @@
 const { ensureAuth } = require('../../utils/page');
 const { deleteDocument, getDocumentById } = require('../../utils/docs');
-const { withPageShare } = require('../../utils/share');
+const { withPageShare, getShareContent } = require('../../utils/share');
 const { getCurrentUser, updateLocalPreviewFontScale, updatePreviewFontScale } = require('../../utils/account');
 const { KEYS, write } = require('../../utils/storage');
 
@@ -47,11 +47,13 @@ function buildFontState(scale = 1) {
   const titleLineHeight = (48 * nextScale).toFixed(1).replace(/\.0$/, '');
   const contentFontSize = (28 * nextScale).toFixed(1).replace(/\.0$/, '');
   const contentLineHeight = (44 * nextScale).toFixed(1).replace(/\.0$/, '');
+  const listLineHeight = (38 * nextScale).toFixed(1).replace(/\.0$/, '');
 
   return {
     fontScale: nextScale,
     titleTextStyle: `font-size:${titleFontSize}rpx;line-height:${titleLineHeight}rpx;`,
     contentTextStyle: `font-size:${contentFontSize}rpx;line-height:${contentLineHeight}rpx;`,
+    contentListTextStyle: `font-size:${contentFontSize}rpx;line-height:${listLineHeight}rpx;`,
     emptyLineStyle: `height:${contentLineHeight}rpx;`
   };
 }
@@ -135,12 +137,91 @@ function buildSegments(text = '', keyword = '') {
   return segments.filter((segment) => segment.text !== '');
 }
 
+function isOcrHeading(line = '') {
+  const text = String(line || '').trim();
+  return /^(?:PART\s*\d+|第[一二三四五六七八九十百\d]+[章节部分]|[一二三四五六七八九十]+[、.]|温馨提示[：:]?|注意事项?[：:]?|重要提示[：:]?)/i.test(text);
+}
+
+function isOcrListItem(line = '') {
+  const text = String(line || '').trim();
+  return text.length <= 28 && /^(?:\d+(?:[.．、]\d+)?|[（(]\d+[）)]|[-•])\s*/.test(text);
+}
+
+function joinOcrFragments(fragments = []) {
+  return fragments.reduce((paragraph, fragment) => {
+    if (!paragraph) {
+      return fragment;
+    }
+
+    const previousChar = paragraph.slice(-1);
+    const nextChar = fragment.charAt(0);
+    const needsSpace = /[A-Za-z0-9]/.test(previousChar) && /[A-Za-z0-9]/.test(nextChar);
+    return `${paragraph}${needsSpace ? ' ' : ''}${fragment}`;
+  }, '');
+}
+
+function buildContentBlocks(content = '', isOcrContent = false) {
+  const rawLines = String(content || '暂无文档内容').replace(/\r/g, '').split('\n');
+  if (!isOcrContent) {
+    return rawLines.map((text, index) => ({
+      id: `detail-line-${index}`,
+      text,
+      kind: 'plain',
+      isEmpty: text === ''
+    }));
+  }
+
+  const blocks = [];
+  let fragments = [];
+  const flushParagraph = () => {
+    const text = joinOcrFragments(fragments);
+    if (text) {
+      blocks.push({ text, kind: 'paragraph', isEmpty: false });
+    }
+    fragments = [];
+  };
+
+  rawLines.forEach((rawLine) => {
+    const text = String(rawLine || '').trim();
+    if (!text) {
+      flushParagraph();
+      if (blocks.length && !blocks[blocks.length - 1].isEmpty) {
+        blocks.push({ text: '', kind: 'paragraph', isEmpty: true });
+      }
+      return;
+    }
+
+    if (isOcrHeading(text)) {
+      flushParagraph();
+      blocks.push({ text, kind: 'heading', isEmpty: false });
+      return;
+    }
+
+    if (isOcrListItem(text)) {
+      flushParagraph();
+      blocks.push({ text, kind: 'list', isEmpty: false });
+      return;
+    }
+
+    fragments.push(text);
+    if (/[。！？；：:】]$/.test(text)) {
+      flushParagraph();
+    }
+  });
+  flushParagraph();
+
+  return blocks.map((block, index) => ({
+    ...block,
+    id: `detail-line-${index}`
+  }));
+}
+
 function buildPreviewData(doc, keyword = '') {
   const normalizedKeyword = normalizeKeyword(keyword);
   const title = String(doc && doc.name || '').trim() || DEFAULT_TITLE;
   const content = String(doc && (doc.markdown || doc.description) || '')
     .replace(/\r/g, '');
-  const sourceLines = content ? content.split('\n') : ['暂无文档内容'];
+  const contentBlocks = buildContentBlocks(content, Boolean(doc && doc.ocrTaskId));
   const titleSegments = buildSegments(title, normalizedKeyword)
     .map((segment, index) => ({
       id: `detail-title-segment-${index}`,
@@ -149,8 +230,8 @@ function buildPreviewData(doc, keyword = '') {
     }));
   const titleMatched = titleSegments.some((segment) => segment.matched);
 
-  const contentLines = sourceLines.map((line, index) => {
-    const segments = buildSegments(line, normalizedKeyword)
+  const contentLines = contentBlocks.map((block, index) => {
+    const segments = buildSegments(block.text, normalizedKeyword)
       .map((segment, segmentIndex) => ({
         id: `detail-line-${index}-segment-${segmentIndex}`,
         text: segment.text,
@@ -158,8 +239,9 @@ function buildPreviewData(doc, keyword = '') {
       }));
 
     return {
-      id: `detail-line-${index}`,
-      isEmpty: line === '',
+      id: block.id,
+      kind: block.kind,
+      isEmpty: block.isEmpty,
       matched: segments.some((segment) => segment.matched),
       segments
     };
@@ -204,22 +286,33 @@ Page(withPageShare({
     emptyLineStyle: '',
     plainTitle: '',
     plainContent: '',
-    sourcePreviewUrls: []
+    sourcePreviewUrls: [],
+    shareToken: '',
+    shareReady: false,
+    isSharedView: false
   },
 
   onLoad(options) {
     const docId = String(options && options.id || '').trim();
+    const shareToken = String(options && options.shareToken || '').trim();
     const currentUser = getCurrentUser();
     const initialFontScale = getUserPreviewFontScale(currentUser);
 
     this.setData({
       docId,
+      shareToken,
+      isSharedView: Boolean(shareToken),
       ...getNavMetrics(),
       ...buildFontState(initialFontScale)
     });
   },
 
   onShow() {
+    if (this.data.isSharedView) {
+      this.loadSharedDocument();
+      return;
+    }
+
     ensureAuth(this, async (user) => {
       this.lastSavedFontScale = getUserPreviewFontScale(user);
       getApp().setCurrentUser(user);
@@ -269,8 +362,68 @@ Page(withPageShare({
         searchFocus: false,
         shouldScroll: Boolean(normalizeKeyword(this.data.searchKeyword))
       });
+      this.prepareShareLink(hydratedDoc, user);
     } catch (error) {
       wx.showToast({ title: '加载文件失败', icon: 'none' });
+    }
+  },
+
+  async loadSharedDocument() {
+    const shareToken = this.data.shareToken;
+    if (!shareToken || this.sharedDocumentLoaded) {
+      return;
+    }
+
+    this.sharedDocumentLoaded = true;
+    wx.showLoading({ title: '加载分享内容...', mask: true });
+    try {
+      const result = await wx.cloud.callFunction({
+        name: 'documentShare',
+        data: { action: 'getShare', token: shareToken }
+      });
+      const payload = result && result.result;
+      if (!payload || !payload.ok || !payload.document) {
+        throw new Error(payload && payload.message || '分享内容不可用');
+      }
+
+      const sourceFiles = await this.hydrateSourceFiles(payload.document.sourceFiles || []);
+      this.updatePreviewData({ ...payload.document, sourceFiles }, '', {
+        searchMode: false,
+        searchFocus: false,
+        shouldScroll: false
+      });
+    } catch (error) {
+      this.sharedDocumentLoaded = false;
+      wx.showToast({ title: error.message || '分享已失效', icon: 'none' });
+      setTimeout(() => this.goBack(), 900);
+    } finally {
+      wx.hideLoading();
+    }
+  },
+
+  async prepareShareLink(doc, user) {
+    const docId = String(doc && doc.id || '').trim();
+    const ownerKey = String(user && user.username || '').trim();
+    if (!docId || !ownerKey || this.preparingShareLink) {
+      return;
+    }
+
+    this.preparingShareLink = true;
+    try {
+      const result = await wx.cloud.callFunction({
+        name: 'documentShare',
+        data: { action: 'createShare', docId, ownerKey }
+      });
+      const payload = result && result.result;
+      if (!payload || !payload.ok || !payload.token) {
+        throw new Error(payload && payload.message || '创建分享失败');
+      }
+      this.setData({ shareToken: payload.token, shareReady: true });
+    } catch (error) {
+      console.error('prepareShareLink failed', error);
+      this.setData({ shareReady: false });
+    } finally {
+      this.preparingShareLink = false;
     }
   },
 
@@ -496,6 +649,28 @@ Page(withPageShare({
     });
   },
 
+  onShareAppMessage() {
+    if (this.data.isSharedView && this.data.shareToken) {
+      return getShareContent({
+        title: this.data.plainTitle || DEFAULT_TITLE,
+        path: '/pages/document/index',
+        query: { shareToken: this.data.shareToken },
+        imageUrl: this.data.sourcePreviewUrls[0] || ''
+      });
+    }
+
+    if (!this.data.shareReady || !this.data.shareToken) {
+      return getShareContent();
+    }
+
+    return getShareContent({
+      title: this.data.plainTitle || DEFAULT_TITLE,
+      path: '/pages/document/index',
+      query: { shareToken: this.data.shareToken },
+      imageUrl: this.data.sourcePreviewUrls[0] || ''
+    });
+  },
+
   applyFontScale(nextScale) {
     this.setData(buildFontState(nextScale));
   },
@@ -589,4 +764,6 @@ Page(withPageShare({
     this.syncLocalFontScale(nextScale);
     this.scheduleFontScaleSave(nextScale);
   }
+}, {
+  enableTimeline: false
 }));

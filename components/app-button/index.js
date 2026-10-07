@@ -16,6 +16,10 @@ Component({
       type: String,
       value: 'full'
     },
+    size: {
+      type: String,
+      value: 'default'
+    },
     fixedWidth: {
       type: String,
       value: ''
@@ -44,11 +48,12 @@ Component({
   },
 
   observers: {
-    'variant, widthMode, fixedWidth, disabled'(variant, widthMode, fixedWidth, disabled) {
+    'variant, widthMode, fixedWidth, size, disabled'(variant, widthMode, fixedWidth, size, disabled) {
       const classNames = [
         'app-button',
         `app-button--${variant || 'dark'}`,
-        `app-button--${widthMode || 'full'}`
+        `app-button--${widthMode || 'full'}`,
+        `app-button--${size || 'default'}`
       ];
 
       if (disabled) {
@@ -71,7 +76,8 @@ Component({
       const classNames = [
         'app-button',
         `app-button--${this.data.variant || 'dark'}`,
-        `app-button--${this.data.widthMode || 'full'}`
+        `app-button--${this.data.widthMode || 'full'}`,
+        `app-button--${this.data.size || 'default'}`
       ];
 
       if (this.data.disabled) {

@@ -1,7 +1,7 @@
 const { KEYS, read, write } = require('./storage');
 
 const DEFAULT_CATEGORY_ID = 'default';
-const DEFAULT_CATEGORY_NAME = '默认分类';
+const DEFAULT_CATEGORY_NAME = '未分类';
 
 function categoriesCollection() {
   return wx.cloud.database().collection('categories');

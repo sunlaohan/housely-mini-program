@@ -4,6 +4,7 @@
 - `ocr`：OCR 任务创建、处理、查询
 - `contentSafety`：调用微信内容安全 API 校验文档文本与图片
 - `feedback`：意见反馈落库与邮件发送
+- `documentShare`：生成文档只读分享 token，并向接收方返回分享内容
 
 使用前请在微信开发者工具中分别右键以下目录：
 
@@ -11,6 +12,7 @@
 2. `cloudfunctions/ocr`
 3. `cloudfunctions/contentSafety`
 4. `cloudfunctions/feedback`
+5. `cloudfunctions/documentShare`
 
 然后选择“上传并部署：云端安装依赖”。
 

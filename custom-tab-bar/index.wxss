@@ -2,9 +2,9 @@
   position: fixed;
   left: 128rpx;
   right: 128rpx;
-  bottom: 28rpx;
-  bottom: calc(28rpx + constant(safe-area-inset-bottom));
-  bottom: calc(28rpx + env(safe-area-inset-bottom));
+  bottom: 12rpx;
+  bottom: calc(12rpx + constant(safe-area-inset-bottom));
+  bottom: calc(12rpx + env(safe-area-inset-bottom));
   z-index: 999;
 }
 
@@ -19,7 +19,7 @@
   background: #ffffff;
   border-radius: 999rpx;
   box-sizing: border-box;
-  box-shadow: none;
+  box-shadow: 0 12rpx 32rpx rgba(27, 33, 41, 0.14);
 }
 
 .custom-tab-bar__item {

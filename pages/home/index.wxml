@@ -92,7 +92,7 @@
     </view>
   </view>
 
-  <view wx:if="{{allDocs.length && categories.length}}" class="home-category-wrap home-category-wrap--more">
+  <view wx:if="{{allDocs.length && homeCategories.length}}" class="home-category-wrap home-category-wrap--more">
     <scroll-view
       class="home-category-tabs"
       scroll-x
@@ -104,7 +104,7 @@
       bindscroll="onCategoryTabsScroll"
     >
       <view class="home-category-tabs__inner">
-        <block wx:for="{{categories}}" wx:key="id">
+        <block wx:for="{{homeCategories}}" wx:key="id">
           <view
             id="category-tab-{{item.id}}"
             class="home-category-tab {{selectedCategoryId === item.id ? 'home-category-tab--active' : ''}}"
@@ -148,39 +148,43 @@
 
     <block wx:else>
       <view class="doc-list">
-        <view class="doc-list__group">
-          <block wx:for="{{docs}}" wx:key="id">
-            <view class="swipe-shell" catchtap="noop" data-id="{{item.id}}" bindtouchstart="onTouchStart" bindtouchmove="onTouchMove" bindtouchend="onTouchEnd">
+        <block wx:for="{{docGroups}}" wx:key="id" wx:for-item="group">
+          <view class="doc-list__group">
+            <view wx:if="{{selectedCategoryId === 'all'}}" class="doc-group-title">{{group.name}}</view>
+            <block wx:for="{{group.docs}}" wx:key="id" wx:for-item="doc">
+              <view class="swipe-shell" catchtap="noop" data-id="{{doc.id}}" bindtouchstart="onTouchStart" bindtouchmove="onTouchMove" bindtouchend="onTouchEnd">
               <view class="doc-swipe-actions">
-                <button class="doc-swipe-btn doc-swipe-btn--move" data-id="{{item.id}}" catchtap="openMoveCategoryChooser">移动</button>
-                <button class="doc-swipe-btn doc-swipe-btn--delete" data-id="{{item.id}}" catchtap="confirmDelete">删除</button>
+                <button class="doc-swipe-btn doc-swipe-btn--move" data-id="{{doc.id}}" catchtap="openMoveCategoryChooser">移动</button>
+                <button class="doc-swipe-btn doc-swipe-btn--delete" data-id="{{doc.id}}" catchtap="confirmDelete">删除</button>
               </view>
 
-              <view class="doc-card {{item.swipeOffset ? 'doc-card--swiped' : ''}}" style="transform: translateX(-{{item.swipeOffset || 0}}rpx);" data-id="{{item.id}}" bindtap="openDoc">
+              <view class="doc-card {{doc.swipeOffset ? 'doc-card--swiped' : ''}}" style="transform: translateX(-{{doc.swipeOffset || 0}}rpx);" data-id="{{doc.id}}" bindtap="openDoc">
                 <view class="doc-main">
-                  <view wx:if="{{batchMode}}" class="doc-select-slot" data-id="{{item.id}}" catchtap="toggleDocSelection">
-                    <view class="doc-select {{item.selected ? 'doc-select--checked' : ''}}">
-                      <view wx:if="{{item.selected}}" class="doc-select__tick"></view>
+                  <view wx:if="{{batchMode}}" class="doc-select-slot" data-id="{{doc.id}}" catchtap="toggleDocSelection">
+                    <view class="doc-select {{doc.selected ? 'doc-select--checked' : ''}}">
+                      <view wx:if="{{doc.selected}}" class="doc-select__tick"></view>
                     </view>
                   </view>
-                  <view wx:if="{{item.coverFileId}}" class="doc-cover">
-                    <image wx:if="{{item.coverUrl}}" class="doc-cover__image" src="{{item.coverUrl}}" mode="aspectFill"></image>
+                  <view wx:if="{{doc.coverFileId}}" class="doc-cover">
+                    <image wx:if="{{doc.coverUrl}}" class="doc-cover__image" src="{{doc.coverUrl}}" mode="aspectFill"></image>
                     <view wx:else class="doc-cover__placeholder">
                       <image class="doc-cover__placeholder-icon" src="../../assets/auth/photograph.svg" mode="aspectFit"></image>
                     </view>
                   </view>
                   <view class="doc-content">
                     <view class="doc-title-row">
-                      <rich-text class="doc-name" nodes="{{item.titleRichText}}"></rich-text>
+                      <rich-text class="doc-name" nodes="{{doc.titleRichText}}"></rich-text>
                       <view class="doc-arrow"></view>
                     </view>
-                    <view class="doc-desc">{{item.previewText || '暂无正文内容'}}</view>
+                    <view class="doc-desc">{{doc.previewText || '暂无正文内容'}}</view>
                   </view>
                 </view>
               </view>
-            </view>
-          </block>
-        </view>
+              </view>
+            </block>
+          </view>
+        </block>
+        <view class="doc-list__bottom-placeholder"></view>
       </view>
     </block>
   </scroll-view>
@@ -192,35 +196,17 @@
 
   <bottom-sheet visible="{{categoryChooserVisible}}" bind:close="closeCategoryChooser">
     <view class="home-category-sheet">
-      <view class="home-category-sheet__header">
-        <view class="home-category-sheet__close" bindtap="closeCategoryChooser">×</view>
-        <view class="home-category-sheet__title">{{categoryChooserMode === 'move' ? '选择分类' : '快速切换分类'}}</view>
-        <view wx:if="{{categoryChooserMode !== 'move'}}" class="home-category-sheet__add" bindtap="openHomeNewCategoryDialog">新增</view>
+        <view class="home-category-sheet__header">
+          <view class="home-category-sheet__close" bindtap="closeCategoryChooser">×</view>
+          <view class="home-category-sheet__title">{{categoryChooserMode === 'move' ? '选择分类' : '快速切换分类'}}</view>
       </view>
 
       <scroll-view class="home-category-sheet__scroll" scroll-y enhanced show-scrollbar="{{false}}">
-        <view wx:if="{{categoryChooserMode !== 'move'}}" class="home-category-sheet__notice">
-          <image class="home-category-sheet__notice-icon" src="../../assets/auth/info-o.svg" mode="aspectFit" />
-          <text>左滑可编辑/删除分类，默认分类不支持</text>
-        </view>
         <view class="home-category-sheet__list">
-          <block wx:for="{{categories}}" wx:key="id">
-            <view
-              class="home-category-swipe-shell {{item.swipeOffset ? 'home-category-swipe-shell--open' : ''}} {{item.dragging ? 'home-category-swipe-shell--dragging' : ''}}"
-              data-id="{{item.id}}"
-              style="{{item.dragStyle || ''}}"
-              bindtouchstart="onHomeCategoryTouchStart"
-              bindtouchmove="onHomeCategoryTouchMove"
-              bindtouchend="onHomeCategoryTouchEnd"
-              bindtouchcancel="onHomeCategoryTouchEnd"
-            >
-              <view wx:if="{{categoryChooserMode !== 'move' && !item.isDefault}}" class="home-category-actions">
-                <view class="home-category-action home-category-action--edit" data-id="{{item.id}}" catchtap="openHomeCategoryEditDialog">编辑</view>
-                <view class="home-category-action home-category-action--delete" data-id="{{item.id}}" catchtap="confirmHomeDeleteCategory">删除</view>
-              </view>
+          <block wx:for="{{categoryChooserMode === 'move' ? categories : homeCategories}}" wx:key="id">
+            <view class="home-category-swipe-shell {{item.dragging ? 'home-category-swipe-shell--dragging' : ''}}" style="{{item.dragStyle || ''}}">
               <view
                 class="home-category-sheet__row {{(categoryChooserMode === 'move' ? moveCategoryId : selectedCategoryId) === item.id ? 'home-category-sheet__row--selected' : ''}}"
-                style="transform: translateX(-{{categoryChooserMode === 'move' ? 0 : (item.swipeOffset || 0)}}rpx);"
                 data-id="{{item.id}}"
                 bindtap="chooseCategoryFromSheet"
               >

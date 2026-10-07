@@ -8,7 +8,7 @@
     </view>
   </view>
 
-  <view wx:if="{{!searchMode}}" class="document-toolbar">
+  <view wx:if="{{!searchMode && !isSharedView}}" class="document-toolbar">
     <view class="document-toolbar__actions">
       <view class="document-zoom">
         <view class="document-zoom__button" bindtap="zoomOutText">
@@ -20,23 +20,26 @@
         </view>
       </view>
 
-      <view class="document-pill" bindtap="goEdit">
-        <image class="document-pill__icon" src="../../assets/auth/edit.svg" mode="aspectFit" />
-        <text class="document-pill__text">编辑</text>
-      </view>
+      <app-button variant="light" width-mode="fixed" fixed-width="80rpx" size="toolbar" bind:press="goEdit">
+        <image slot="prefix" class="document-toolbar-button__icon document-toolbar-button__icon--edit" src="../../assets/auth/edit.svg" mode="aspectFit" />
+      </app-button>
 
-      <view class="document-pill document-pill--danger" bindtap="confirmDelete">
-        <text class="document-pill__text document-pill__text--danger">删除</text>
-      </view>
+      <app-button variant="light" width-mode="fixed" fixed-width="80rpx" size="toolbar" bind:press="confirmDelete">
+        <image slot="prefix" class="document-toolbar-button__icon document-toolbar-button__icon--delete" src="../../assets/auth/delete.svg" mode="aspectFit" />
+      </app-button>
     </view>
 
-    <view class="document-pill document-pill--search" bindtap="openSearch">
-      <image class="document-pill__icon" src="../../assets/auth/search.svg" mode="aspectFit" />
-      <text class="document-pill__text">查找</text>
+    <view class="document-toolbar__actions document-toolbar__actions--right">
+      <app-button variant="light" width-mode="fixed" fixed-width="80rpx" size="toolbar" open-type="share" disabled="{{!shareReady}}">
+        <image slot="prefix" class="document-toolbar-button__icon document-toolbar-button__icon--share" src="../../assets/auth/share.svg" mode="aspectFit" />
+      </app-button>
+      <app-button text="查找" variant="light" width-mode="fixed" fixed-width="144rpx" size="toolbar" bind:press="openSearch">
+        <image slot="prefix" class="document-toolbar-button__icon document-toolbar-button__icon--search" src="../../assets/auth/search-detail.svg" mode="aspectFit" />
+      </app-button>
     </view>
   </view>
 
-  <view wx:else class="document-searchbar">
+  <view wx:elif="{{searchMode}}" class="document-searchbar">
     <view class="document-searchbar__box">
       <image class="document-searchbar__icon" src="../../assets/auth/search.svg" mode="aspectFit" />
       <input
@@ -89,28 +92,19 @@
         </view>
 
         <view class="document-card__content">
-          <text
-            wx:if="{{!searchKeyword}}"
-            class="document-card__content-text"
-            style="{{contentTextStyle}}"
-            user-select="{{true}}"
-            selectable="{{true}}"
-          >{{plainContent}}</text>
-          <block wx:else>
-            <block wx:for="{{contentLines}}" wx:key="id" wx:for-item="line">
-              <view id="{{line.id}}" class="document-card__line {{line.isEmpty ? 'document-card__line--empty' : ''}}" style="{{line.isEmpty ? emptyLineStyle : ''}}">
-                <block wx:if="{{!line.isEmpty}}">
-                  <block wx:for="{{line.segments}}" wx:key="id" wx:for-item="segment">
-                    <text
-                      class="document-card__content-segment {{segment.matched ? 'document-card__segment--matched' : ''}}"
-                      style="{{contentTextStyle}}"
-                      user-select="{{true}}"
-                      selectable="{{true}}"
-                    >{{segment.text}}</text>
-                  </block>
+          <block wx:for="{{contentLines}}" wx:key="id" wx:for-item="line">
+            <view id="{{line.id}}" class="document-card__line document-card__line--{{line.kind}} {{line.isEmpty ? 'document-card__line--empty' : ''}}" style="{{line.isEmpty ? emptyLineStyle : ''}}">
+              <block wx:if="{{!line.isEmpty}}">
+                <block wx:for="{{line.segments}}" wx:key="id" wx:for-item="segment">
+                  <text
+                    class="document-card__content-segment {{segment.matched ? 'document-card__segment--matched' : ''}}"
+                    style="{{line.kind === 'list' ? contentListTextStyle : contentTextStyle}}"
+                    user-select="{{true}}"
+                    selectable="{{true}}"
+                  >{{segment.text}}</text>
                 </block>
-              </view>
-            </block>
+              </block>
+            </view>
           </block>
         </view>
       </view>

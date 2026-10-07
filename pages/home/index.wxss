@@ -4,9 +4,7 @@ page {
 
 .home-shell {
   height: 100vh;
-  padding: 16rpx 32rpx 220rpx;
-  padding-bottom: calc(220rpx + constant(safe-area-inset-bottom));
-  padding-bottom: calc(220rpx + env(safe-area-inset-bottom));
+  padding: 16rpx 32rpx 0;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -14,9 +12,9 @@ page {
 }
 
 .home-shell--batch {
-  padding-bottom: 220rpx;
-  padding-bottom: calc(220rpx + constant(safe-area-inset-bottom));
-  padding-bottom: calc(220rpx + env(safe-area-inset-bottom));
+  padding-bottom: 110rpx;
+  padding-bottom: calc(110rpx + constant(safe-area-inset-bottom));
+  padding-bottom: calc(110rpx + env(safe-area-inset-bottom));
 }
 
 .share-landing {
@@ -495,7 +493,11 @@ page {
 }
 
 .doc-list {
-  margin-top: 20rpx;
+  margin-top: 10rpx;
+}
+
+.doc-list__bottom-placeholder {
+  height: 220rpx;
 }
 
 .home-content-scroll {
@@ -665,6 +667,13 @@ page {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.doc-group-title {
+  padding: 9rpx 32rpx 5rpx;
+  color: #7d8791;
+  font-size: 24rpx;
+  line-height: 32rpx;
 }
 
 .doc-arrow {

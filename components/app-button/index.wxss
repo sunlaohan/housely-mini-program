@@ -27,6 +27,13 @@
   display: flex;
 }
 
+.app-button--toolbar {
+  height: 68rpx;
+  padding: 0;
+  border-radius: 999rpx;
+  gap: 8rpx;
+}
+
 .app-button--dark {
   background: #1b2129 !important;
   color: #ffffff !important;

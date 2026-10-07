@@ -41,6 +41,7 @@
 - 支持自动滚动到首个命中位置
 - 支持阅读字号放大 / 缩小
 - 支持从详情页跳转回编辑页继续修改
+- 支持生成 30 天有效的小程序只读分享链接；接收方可直接查看图片与识别文本
 
 ### 5. 个人中心
 
@@ -55,6 +56,7 @@
 - `auth` 云函数：登录建号、头像更新、注销账号
 - `ocr` 云函数：创建任务、处理任务、查询结果
 - `contentSafety` 云函数：调用微信内容安全 API 校验文本和图片
+- `documentShare` 云函数：文档只读分享 token 的创建与读取
 - OCR 支持 `mock`、`official`、`http`、`auto` 四种模式
 - `auto` 模式下会优先尝试微信 OCR，失败时可回退到 HTTP OCR 服务或 mock 结果
 
@@ -82,6 +84,7 @@
 - `cloudfunctions/ocr`：OCR 任务云函数
 - `cloudfunctions/contentSafety`：内容安全校验云函数
 - `cloudfunctions/feedback`：反馈落库与邮件发送
+- `cloudfunctions/documentShare`：文档只读分享云函数
 - `services/mineru_worker`：可选的 HTTP OCR / MinerU 适配服务
 
 ## 快速开始
@@ -94,12 +97,14 @@
    - `cloudfunctions/ocr`
    - `cloudfunctions/contentSafety`
    - `cloudfunctions/feedback`
+   - `cloudfunctions/documentShare`
 5. 在云开发数据库中手动创建以下集合：
    - `users`
    - `documents`
    - `categories`
    - `ocr_tasks`
    - `feedbacks`
+   - `document_shares`
 6. 重新编译项目。
 
 ## 集合权限建议
@@ -109,6 +114,7 @@
 - `categories`：仅创建者可读写
 - `ocr_tasks`：所有用户不可直接读写，仅通过 `ocr` 云函数访问
 - `feedbacks`：仅创建者可读写，后续可按实际运营流程继续收紧
+- `document_shares`：所有用户不可直接读写，仅通过 `documentShare` 云函数访问
 
 ## OCR 配置说明
 

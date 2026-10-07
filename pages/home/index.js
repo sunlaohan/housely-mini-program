@@ -14,13 +14,13 @@ const {
   createCategory,
   deleteCategory,
   getCategories,
-  getCategoryByIdFromList,
   getDefaultCategory,
   updateCategory,
   updateCategoryOrder
 } = require('../../utils/categories');
 
 const CATEGORY_NAME_MAX_LENGTH = 16;
+const ALL_CATEGORY_ID = 'all';
 const TIMELINE_ENTRY = 'timeline';
 const TIMELINE_SCENE = 1154;
 const SHARE_HIGHLIGHTS = [
@@ -222,13 +222,39 @@ function buildSearchableDoc(doc) {
   return {
     ...doc,
     categoryId: String(doc && doc.categoryId || DEFAULT_CATEGORY_ID).trim() || DEFAULT_CATEGORY_ID,
-    categoryName: String(doc && doc.categoryName || '默认分类').trim() || '默认分类',
+    categoryName: String(doc && doc.categoryId || DEFAULT_CATEGORY_ID).trim() === DEFAULT_CATEGORY_ID
+      ? '未分类'
+      : (String(doc && doc.categoryName || '未分类').trim() || '未分类'),
     coverFileId: getDocCoverFileId(doc),
     coverUrl: '',
     previewText: buildDocPreview(doc),
     titleRichText: escapeHtml(doc.name || ''),
     searchScore: 0
   };
+}
+
+function getAllCategory() {
+  return {
+    id: ALL_CATEGORY_ID,
+    name: '全部',
+    isAll: true,
+    isDefault: true,
+    swipeOffset: 0,
+    editing: false,
+    draftName: '全部',
+    focus: false
+  };
+}
+
+function buildHomeCategories(categories = [], docs = []) {
+  const categoryIdsWithDocs = new Set((docs || []).map((doc) => {
+    const categoryId = String(doc && doc.categoryId || DEFAULT_CATEGORY_ID).trim() || DEFAULT_CATEGORY_ID;
+    return categoryId;
+  }));
+
+  return [getAllCategory()].concat((categories || []).filter((category) =>
+    categoryIdsWithDocs.has(category.id)
+  ));
 }
 
 function getDocCoverFileId(doc) {
@@ -313,7 +339,8 @@ Page(withPageShare({
     shareHighlights: SHARE_HIGHLIGHTS,
     shareScenes: SHARE_SCENES,
     categories: [getDefaultCategory()],
-    selectedCategoryId: DEFAULT_CATEGORY_ID,
+    homeCategories: [getAllCategory()],
+    selectedCategoryId: ALL_CATEGORY_ID,
     showCategoryMore: false,
     categoryHasOverflow: false,
     categoryScrollLeft: 0,
@@ -345,6 +372,7 @@ Page(withPageShare({
     categoryDragBaseList: [],
     allDocs: [],
     docs: [],
+    docGroups: [],
     isLoadingDocs: false,
     contentRefreshing: false,
     searchKeyword: '',
@@ -378,7 +406,8 @@ Page(withPageShare({
         currentUser: null,
         shareLandingVisible,
         categories: [getDefaultCategory()],
-        selectedCategoryId: DEFAULT_CATEGORY_ID,
+        homeCategories: [getAllCategory()],
+        selectedCategoryId: ALL_CATEGORY_ID,
         showCategoryMore: false,
         categoryHasOverflow: false,
         categoryScrollLeft: 0,
@@ -389,6 +418,7 @@ Page(withPageShare({
         categoryChooserVisible: false,
         allDocs: [],
         docs: [],
+        docGroups: [],
         isLoadingDocs: false,
         contentRefreshing: false,
         searchKeyword: '',
@@ -406,7 +436,8 @@ Page(withPageShare({
     }
 
     const pendingCategoryId = String(read(KEYS.PENDING_HOME_CATEGORY_ID, '') || '').trim();
-    const shouldShowReturnLoading = Boolean(pendingCategoryId);
+    const pendingHomeRefresh = Boolean(read(KEYS.PENDING_HOME_REFRESH, ''));
+    const shouldShowReturnLoading = Boolean(pendingCategoryId || pendingHomeRefresh);
     if (shouldShowReturnLoading) {
       wx.showLoading({ title: '加载中...', mask: true });
     }
@@ -424,6 +455,7 @@ Page(withPageShare({
       ensureAuth(this, async (user) => {
         await this.loadDocuments(user, {
           pendingCategoryId,
+          forceRefresh: pendingHomeRefresh,
           showLoadingOverlay: shouldShowReturnLoading
         });
       });
@@ -456,17 +488,19 @@ Page(withPageShare({
   },
 
   async loadDocuments(user, options = {}) {
-    const { silent = false, pendingCategoryId = '', showLoadingOverlay = false } = options;
+    const { silent = false, pendingCategoryId = '', forceRefresh = false, showLoadingOverlay = false } = options;
     const targetCategoryId = String(pendingCategoryId || '').trim() || consumePendingHomeCategoryId();
     if (targetCategoryId) {
       remove(KEYS.PENDING_HOME_CATEGORY_ID);
     }
-
     try {
       const docs = await this.hydrateDocCovers((await getDocuments(user)).map(this.decorateDoc));
       const categories = await getCategories(user);
-      const currentCategory = getCategoryByIdFromList(categories, targetCategoryId || this.data.selectedCategoryId);
-      const lastCategory = categories[categories.length - 1] || null;
+      const homeCategories = buildHomeCategories(categories, docs);
+      const requestedCategoryId = targetCategoryId || this.data.selectedCategoryId;
+      const currentCategory = homeCategories.find((category) => category.id === requestedCategoryId)
+        || getAllCategory();
+      const lastCategory = homeCategories[homeCategories.length - 1] || null;
       const isLastCategory = Boolean(lastCategory && lastCategory.id === currentCategory.id);
       const categoryScrollState = targetCategoryId ? {
         categoryScrollIntoView: isLastCategory ? '' : `category-tab-${currentCategory.id}`,
@@ -480,10 +514,12 @@ Page(withPageShare({
       this.setData({
         currentUser: user,
         categories,
+        homeCategories,
         selectedCategoryId: currentCategory.id,
         allDocs: docs,
         selectedIds,
         docs: visibleDocs,
+        docGroups: this.buildDocGroups(visibleDocs, currentCategory.id),
         swipeId: '',
         isLoadingDocs: false,
         contentRefreshing: false,
@@ -498,6 +534,9 @@ Page(withPageShare({
         }
       });
       getApp().setCurrentUser(user);
+      if (forceRefresh) {
+        remove(KEYS.PENDING_HOME_REFRESH);
+      }
     } catch (error) {
       this.setData({
         isLoadingDocs: false,
@@ -511,9 +550,9 @@ Page(withPageShare({
   },
 
   syncCategoryMoreVisibility() {
-    if (!this.data.allDocs.length || !this.data.categories || this.data.categories.length <= 1) {
+    if (!this.data.allDocs.length || !this.data.homeCategories || this.data.homeCategories.length <= 1) {
       this.setData({
-        showCategoryMore: Boolean(this.data.allDocs.length && this.data.categories && this.data.categories.length),
+        showCategoryMore: Boolean(this.data.allDocs.length && this.data.homeCategories && this.data.homeCategories.length),
         categoryHasOverflow: false
       });
       return;
@@ -525,7 +564,7 @@ Page(withPageShare({
     query.exec((result) => {
       const wrapRect = result && result[0];
       const innerRect = result && result[1];
-      const fallbackVisible = this.data.categories.length > 3;
+      const fallbackVisible = this.data.homeCategories.length > 3;
 
       if (!wrapRect || !innerRect) {
         this.setData({
@@ -687,6 +726,34 @@ Page(withPageShare({
     };
   },
 
+  buildDocGroups(docs = [], selectedCategoryId = this.data.selectedCategoryId) {
+    if (selectedCategoryId !== ALL_CATEGORY_ID) {
+      return [{ id: 'current-category', name: '', docs }];
+    }
+
+    const groups = new Map();
+    docs.forEach((doc) => {
+      const categoryId = doc.categoryId || DEFAULT_CATEGORY_ID;
+      if (!groups.has(categoryId)) {
+        groups.set(categoryId, {
+          id: categoryId,
+          name: doc.categoryName || '未分类',
+          docs: []
+        });
+      }
+      groups.get(categoryId).docs.push(doc);
+    });
+    const categoryOrder = new Map((this.data.categories || []).map((category, index) => [
+      category.id,
+      index
+    ]));
+    return Array.from(groups.values()).sort((left, right) => {
+      const leftOrder = categoryOrder.has(left.id) ? categoryOrder.get(left.id) : Number.MAX_SAFE_INTEGER;
+      const rightOrder = categoryOrder.has(right.id) ? categoryOrder.get(right.id) : Number.MAX_SAFE_INTEGER;
+      return leftOrder - rightOrder;
+    });
+  },
+
   getVisibleDocs(
     allDocs = this.data.allDocs,
     keyword = this.data.searchKeyword,
@@ -695,9 +762,12 @@ Page(withPageShare({
     categories = this.data.categories
   ) {
     const normalizedKeyword = normalizeKeyword(keyword);
-    const categoryId = selectedCategoryId || DEFAULT_CATEGORY_ID;
+    const categoryId = selectedCategoryId || ALL_CATEGORY_ID;
     const knownCategoryIds = new Set((categories || []).map((category) => category.id));
     const categoryDocs = allDocs.filter((doc) => {
+      if (categoryId === ALL_CATEGORY_ID) {
+        return true;
+      }
       const docCategoryId = knownCategoryIds.has(doc.categoryId) ? doc.categoryId : DEFAULT_CATEGORY_ID;
       return docCategoryId === categoryId;
     });
@@ -736,6 +806,7 @@ Page(withPageShare({
       this.setData({
         searchLoading: false,
         docs,
+        docGroups: this.buildDocGroups(docs),
         ...this.getBatchSelectionState(docs, this.data.selectedIds)
       });
       return;
@@ -749,6 +820,7 @@ Page(withPageShare({
       this.setData({
         searchLoading: false,
         docs,
+        docGroups: this.buildDocGroups(docs),
         ...this.getBatchSelectionState(docs, this.data.selectedIds)
       });
     }, 1000);
@@ -771,6 +843,7 @@ Page(withPageShare({
       searchKeyword: '',
       searchLoading: false,
       docs,
+      docGroups: this.buildDocGroups(docs),
       ...this.getBatchSelectionState(docs, this.data.selectedIds)
     });
   },
@@ -780,7 +853,7 @@ Page(withPageShare({
   },
 
   goAdd() {
-    const categoryId = encodeURIComponent(this.data.selectedCategoryId || DEFAULT_CATEGORY_ID);
+    const categoryId = encodeURIComponent(DEFAULT_CATEGORY_ID);
     wx.navigateTo({
       url: `/pages/editor/index?categoryId=${categoryId}`
     });
@@ -799,7 +872,7 @@ Page(withPageShare({
       return;
     }
 
-    const lastCategory = this.data.categories[this.data.categories.length - 1] || null;
+    const lastCategory = this.data.homeCategories[this.data.homeCategories.length - 1] || null;
     const isLastCategory = Boolean(lastCategory && lastCategory.id === id);
     const docs = this.getVisibleDocs(this.data.allDocs, this.data.searchKeyword, this.data.selectedIds, id);
     this.setData({
@@ -809,6 +882,7 @@ Page(withPageShare({
       categoryScrollTargetLeft: isLastCategory ? 99999 : this.data.categoryScrollLeft,
       showCategoryMore: isLastCategory ? false : this.data.showCategoryMore,
       docs,
+      docGroups: this.buildDocGroups(docs, id),
       swipeId: '',
       ...this.getBatchSelectionState(docs, this.data.selectedIds)
     }, () => {
@@ -826,7 +900,7 @@ Page(withPageShare({
       moveDocumentId: '',
       moveDocumentIds: [],
       categorySwipeId: '',
-      categories: this.data.categories.map((category) => ({
+      homeCategories: this.data.homeCategories.map((category) => ({
         ...category,
         swipeOffset: 0
       }))
@@ -980,7 +1054,9 @@ Page(withPageShare({
   },
 
   refreshHomeCategories(categories, preferredCategoryId = this.data.selectedCategoryId) {
-    const selectedCategory = getCategoryByIdFromList(categories, preferredCategoryId);
+    const homeCategories = buildHomeCategories(categories, this.data.allDocs);
+    const selectedCategory = homeCategories.find((category) => category.id === preferredCategoryId)
+      || getAllCategory();
     const docs = this.getVisibleDocs(
       this.data.allDocs,
       this.data.searchKeyword,
@@ -990,8 +1066,10 @@ Page(withPageShare({
     );
     this.setData({
       categories,
+      homeCategories,
       selectedCategoryId: selectedCategory.id,
       docs,
+      docGroups: this.buildDocGroups(docs, selectedCategory.id),
       categorySwipeId: '',
       ...this.getBatchSelectionState(docs, this.data.selectedIds)
     }, () => {
@@ -1016,14 +1094,14 @@ Page(withPageShare({
 
   openHomeCategoryEditDialog(event) {
     const { id } = event.currentTarget.dataset;
-    const category = this.data.categories.find((item) => item.id === id);
+    const category = this.data.homeCategories.find((item) => item.id === id);
     if (!category || category.isDefault) {
       return;
     }
 
     this.setData({
       categorySwipeId: '',
-      categories: this.data.categories.map((item) => ({
+      homeCategories: this.data.homeCategories.map((item) => ({
         ...item,
         swipeOffset: 0
       })),
@@ -1107,14 +1185,14 @@ Page(withPageShare({
 
   confirmHomeDeleteCategory(event) {
     const { id } = event.currentTarget.dataset;
-    const category = this.data.categories.find((item) => item.id === id);
+    const category = this.data.homeCategories.find((item) => item.id === id);
     if (!category || category.isDefault) {
       return;
     }
 
     wx.showModal({
       title: '删除提示',
-      content: '被删除分类下如果还有记忆会自动移动到【默认分类】，是否确认删除',
+      content: '被删除分类下如果还有记忆会自动移动到【未分类】，是否确认删除',
       confirmText: '删除',
       cancelText: '取消',
       confirmColor: '#f55047',
@@ -1151,7 +1229,7 @@ Page(withPageShare({
     }
 
     const { id } = event.currentTarget.dataset;
-    const category = this.data.categories.find((item) => item.id === id);
+    const category = this.data.homeCategories.find((item) => item.id === id);
     if (!category || category.isDefault) {
       return;
     }
@@ -1160,7 +1238,7 @@ Page(withPageShare({
       categoryTouchStartX: event.changedTouches[0].clientX,
       categoryTouchMoved: false,
       categorySwipeId: this.data.categorySwipeId && this.data.categorySwipeId !== id ? '' : this.data.categorySwipeId,
-      categories: this.data.categories.map((item) => ({
+      homeCategories: this.data.homeCategories.map((item) => ({
         ...item,
         swipeOffset: item.id === id ? item.swipeOffset || 0 : 0
       }))
@@ -1176,7 +1254,7 @@ Page(withPageShare({
     }
 
     const { id } = event.currentTarget.dataset;
-    const category = this.data.categories.find((item) => item.id === id);
+    const category = this.data.homeCategories.find((item) => item.id === id);
     if (!category || category.isDefault) {
       return;
     }
@@ -1187,7 +1265,7 @@ Page(withPageShare({
       : 0;
     this.setData({
       categoryTouchMoved: Math.abs(moveX) > 6 || this.data.categoryTouchMoved,
-      categories: this.data.categories.map((item) => ({
+      homeCategories: this.data.homeCategories.map((item) => ({
         ...item,
         swipeOffset: item.id === id ? currentOffset : 0
       }))
@@ -1203,7 +1281,7 @@ Page(withPageShare({
     }
 
     const { id } = event.currentTarget.dataset;
-    const category = this.data.categories.find((item) => item.id === id);
+    const category = this.data.homeCategories.find((item) => item.id === id);
     if (!category || category.isDefault) {
       return;
     }
@@ -1212,7 +1290,7 @@ Page(withPageShare({
     const shouldOpen = moveX < -this.data.categorySwipeThreshold;
     this.setData({
       categorySwipeId: shouldOpen ? id : '',
-      categories: this.data.categories.map((item) => ({
+      homeCategories: this.data.homeCategories.map((item) => ({
         ...item,
         swipeOffset: item.id === id && shouldOpen ? this.data.categorySwipeMaxOffset : 0
       }))
@@ -1234,7 +1312,7 @@ Page(withPageShare({
 
     const { id, index } = event.currentTarget.dataset;
     const dragIndex = Number(index);
-    const category = this.data.categories[dragIndex];
+    const category = this.data.homeCategories[dragIndex];
     if (!category || category.id !== id || category.isDefault || this.data.categoryDragSaving) {
       return;
     }
@@ -1247,12 +1325,12 @@ Page(withPageShare({
       categoryDragHoverIndex: dragIndex,
       categorySwipeId: '',
       categoryTouchMoved: true,
-      categoryDragBaseList: this.data.categories.map((item) => ({
+      categoryDragBaseList: this.data.homeCategories.map((item) => ({
         ...item,
         swipeOffset: 0,
         dragStyle: ''
       })),
-      categories: this.data.categories.map((item) => ({
+      homeCategories: this.data.homeCategories.map((item) => ({
         ...item,
         swipeOffset: 0,
         dragging: item.id === id,
@@ -1268,7 +1346,7 @@ Page(withPageShare({
 
     const baseList = this.data.categoryDragBaseList.length
       ? this.data.categoryDragBaseList
-      : this.data.categories;
+      : this.data.homeCategories;
     const rowHeight = getCategoryRowHeightPx();
     const offsetY = getTouchY(event) - this.data.categoryDragStartY;
     const rawIndex = this.data.categoryDragIndex + Math.round(offsetY / rowHeight);
@@ -1285,7 +1363,7 @@ Page(withPageShare({
     this.setData({
       categoryDragMoved: moved,
       categoryDragHoverIndex: hoverIndex,
-      categories: nextCategories
+      homeCategories: nextCategories
     });
   },
 
@@ -1297,7 +1375,7 @@ Page(withPageShare({
     const moved = this.data.categoryDragMoved;
     const baseList = this.data.categoryDragBaseList.length
       ? this.data.categoryDragBaseList
-      : this.data.categories;
+      : this.data.homeCategories;
     const finalIndex = Math.max(1, Math.min(baseList.length - 1, this.data.categoryDragHoverIndex));
     const orderedCategories = moved
       ? moveArrayItem(baseList, this.data.categoryDragIndex, finalIndex)
@@ -1311,7 +1389,7 @@ Page(withPageShare({
     }));
 
     this.setData({
-      categories: nextCategories,
+      homeCategories: nextCategories,
       categoryDragKey: '',
       categoryDragIndex: -1,
       categoryDragStartY: 0,
@@ -1375,6 +1453,7 @@ Page(withPageShare({
       selectedIds,
       swipeId: '',
       docs,
+      docGroups: this.buildDocGroups(docs),
       ...this.getBatchSelectionState(docs, selectedIds)
     }, () => {
       this.syncTabBar();
@@ -1389,6 +1468,7 @@ Page(withPageShare({
       selectedIds,
       swipeId: '',
       docs,
+      docGroups: this.buildDocGroups(docs),
       ...this.getBatchSelectionState(docs, selectedIds)
     }, () => {
       this.syncTabBar();
@@ -1416,6 +1496,7 @@ Page(withPageShare({
     this.setData({
       selectedIds: nextSelectedIds,
       docs,
+      docGroups: this.buildDocGroups(docs),
       ...this.getBatchSelectionState(docs, nextSelectedIds)
     });
   },
@@ -1438,6 +1519,7 @@ Page(withPageShare({
     this.setData({
       selectedIds: nextSelectedIds,
       docs,
+      docGroups: this.buildDocGroups(docs),
       ...this.getBatchSelectionState(docs, nextSelectedIds)
     });
   },
