@@ -246,14 +246,15 @@ function getAllCategory() {
   };
 }
 
-function buildHomeCategories(categories = [], docs = []) {
+function buildHomeCategories(categories = [], docs = [], preservedCategoryId = '') {
   const categoryIdsWithDocs = new Set((docs || []).map((doc) => {
     const categoryId = String(doc && doc.categoryId || DEFAULT_CATEGORY_ID).trim() || DEFAULT_CATEGORY_ID;
     return categoryId;
   }));
+  const normalizedPreservedCategoryId = String(preservedCategoryId || '').trim();
 
   return [getAllCategory()].concat((categories || []).filter((category) =>
-    categoryIdsWithDocs.has(category.id)
+    categoryIdsWithDocs.has(category.id) || category.id === normalizedPreservedCategoryId
   ));
 }
 
@@ -322,6 +323,72 @@ function consumePendingHomeCategoryId() {
   return categoryId;
 }
 
+function getPendingHomeDocument() {
+  const document = read(KEYS.PENDING_HOME_DOCUMENT, null);
+  const documentId = String(document && (document.id || document._id) || '').trim();
+  return documentId ? document : null;
+}
+
+function isPendingHomeDocumentOwnedByUser(document, user) {
+  const ownerKey = String(document && (document.ownerKey || document.username) || '').trim();
+  const documentUserId = String(document && document.userId || '').trim();
+  const username = String(user && user.username || '').trim();
+  const userId = String(user && user.id || '').trim();
+
+  return Boolean(
+    (ownerKey && username && ownerKey === username)
+    || (documentUserId && userId && documentUserId === userId)
+  );
+}
+
+function mergePendingHomeDocument(documents = [], pendingDocument = null) {
+  const pendingDocumentId = String(
+    pendingDocument && (pendingDocument.id || pendingDocument._id) || ''
+  ).trim();
+
+  if (!pendingDocumentId) {
+    return documents;
+  }
+
+  return [pendingDocument].concat(documents.filter((document) =>
+    String(document && (document.id || document._id) || '').trim() !== pendingDocumentId
+  ));
+}
+
+function getDocumentCategoryId(document) {
+  return String(document && document.categoryId || DEFAULT_CATEGORY_ID).trim() || DEFAULT_CATEGORY_ID;
+}
+
+function mergeRefreshedCategoryDocuments(
+  existingDocuments = [],
+  refreshedDocuments = [],
+  categoryId = ''
+) {
+  const normalizedCategoryId = String(categoryId || '').trim();
+  if (!normalizedCategoryId || normalizedCategoryId === ALL_CATEGORY_ID) {
+    return refreshedDocuments;
+  }
+
+  const refreshedDocumentIds = new Set(refreshedDocuments.map((document) =>
+    String(document && (document.id || document._id) || '').trim()
+  ).filter(Boolean));
+  const preservedDocuments = existingDocuments.filter((document) => {
+    const documentId = String(document && (document.id || document._id) || '').trim();
+    return getDocumentCategoryId(document) !== normalizedCategoryId
+      && !refreshedDocumentIds.has(documentId);
+  });
+
+  return refreshedDocuments.concat(preservedDocuments);
+}
+
+function sortDocumentsByUpdatedAt(documents = []) {
+  return documents.slice().sort((left, right) => {
+    const leftTime = new Date(left && (left.updatedAt || left.createdAt) || 0).getTime();
+    const rightTime = new Date(right && (right.updatedAt || right.createdAt) || 0).getTime();
+    return rightTime - leftTime;
+  });
+}
+
 function waitForNextRender(callback) {
   if (typeof wx.nextTick === 'function') {
     wx.nextTick(callback);
@@ -329,6 +396,12 @@ function waitForNextRender(callback) {
   }
 
   setTimeout(callback, 50);
+}
+
+function waitForNextRenderAsync() {
+  return new Promise((resolve) => {
+    waitForNextRender(resolve);
+  });
 }
 
 Page(withPageShare({
@@ -436,8 +509,9 @@ Page(withPageShare({
     }
 
     const pendingCategoryId = String(read(KEYS.PENDING_HOME_CATEGORY_ID, '') || '').trim();
+    const pendingDocument = getPendingHomeDocument();
     const pendingHomeRefresh = Boolean(read(KEYS.PENDING_HOME_REFRESH, ''));
-    const shouldShowReturnLoading = Boolean(pendingCategoryId || pendingHomeRefresh);
+    const shouldShowReturnLoading = Boolean(pendingCategoryId || pendingDocument || pendingHomeRefresh);
     if (shouldShowReturnLoading) {
       wx.showLoading({ title: '加载中...', mask: true });
     }
@@ -455,6 +529,7 @@ Page(withPageShare({
       ensureAuth(this, async (user) => {
         await this.loadDocuments(user, {
           pendingCategoryId,
+          pendingDocument,
           forceRefresh: pendingHomeRefresh,
           showLoadingOverlay: shouldShowReturnLoading
         });
@@ -481,23 +556,63 @@ Page(withPageShare({
     this.setData({ contentRefreshing: true });
 
     try {
-      await this.loadDocuments(currentUser, { silent: true });
+      await this.loadDocuments(currentUser, {
+        silent: true,
+        queryCategoryId: this.data.selectedCategoryId || ALL_CATEGORY_ID
+      });
     } finally {
       this.setData({ contentRefreshing: false });
     }
   },
 
   async loadDocuments(user, options = {}) {
-    const { silent = false, pendingCategoryId = '', forceRefresh = false, showLoadingOverlay = false } = options;
+    const {
+      silent = false,
+      pendingCategoryId = '',
+      pendingDocument: requestedPendingDocument = null,
+      queryCategoryId = '',
+      forceRefresh = false,
+      showLoadingOverlay = false
+    } = options;
+    const pendingDocument = requestedPendingDocument || getPendingHomeDocument();
+    const normalizedQueryCategoryId = String(queryCategoryId || '').trim();
     const targetCategoryId = String(pendingCategoryId || '').trim() || consumePendingHomeCategoryId();
     if (targetCategoryId) {
       remove(KEYS.PENDING_HOME_CATEGORY_ID);
     }
     try {
-      const docs = await this.hydrateDocCovers((await getDocuments(user)).map(this.decorateDoc));
+      const fetchedDocuments = await getDocuments(user, normalizedQueryCategoryId);
+      const ownedPendingDocument = isPendingHomeDocumentOwnedByUser(pendingDocument, user)
+        ? pendingDocument
+        : null;
+      const pendingDocumentId = String(
+        ownedPendingDocument && (ownedPendingDocument.id || ownedPendingDocument._id) || ''
+      ).trim();
+      const pendingDocumentCategoryId = getDocumentCategoryId(ownedPendingDocument);
+      const pendingDocumentCategoryWasFetched = Boolean(
+        !normalizedQueryCategoryId
+        || normalizedQueryCategoryId === ALL_CATEGORY_ID
+        || normalizedQueryCategoryId === pendingDocumentCategoryId
+      );
+      const pendingDocumentConfirmed = Boolean(
+        pendingDocumentCategoryWasFetched
+        && pendingDocumentId
+        && fetchedDocuments.some((document) =>
+          String(document && (document.id || document._id) || '').trim() === pendingDocumentId
+        )
+      );
+      const refreshedDocuments = mergeRefreshedCategoryDocuments(
+        this.data.allDocs,
+        fetchedDocuments,
+        normalizedQueryCategoryId
+      );
+      const mergedDocuments = sortDocumentsByUpdatedAt(
+        mergePendingHomeDocument(refreshedDocuments, ownedPendingDocument)
+      );
+      const docs = await this.hydrateDocCovers(mergedDocuments.map(this.decorateDoc));
       const categories = await getCategories(user);
-      const homeCategories = buildHomeCategories(categories, docs);
       const requestedCategoryId = targetCategoryId || this.data.selectedCategoryId;
+      const homeCategories = buildHomeCategories(categories, docs, requestedCategoryId);
       const currentCategory = homeCategories.find((category) => category.id === requestedCategoryId)
         || getAllCategory();
       const lastCategory = homeCategories[homeCategories.length - 1] || null;
@@ -534,6 +649,9 @@ Page(withPageShare({
         }
       });
       getApp().setCurrentUser(user);
+      if (pendingDocument && (!ownedPendingDocument || pendingDocumentConfirmed)) {
+        remove(KEYS.PENDING_HOME_DOCUMENT);
+      }
       if (forceRefresh) {
         remove(KEYS.PENDING_HOME_REFRESH);
       }
@@ -853,7 +971,12 @@ Page(withPageShare({
   },
 
   goAdd() {
-    const categoryId = encodeURIComponent(DEFAULT_CATEGORY_ID);
+    const selectedCategoryId = String(this.data.selectedCategoryId || '').trim();
+    const categoryId = encodeURIComponent(
+      selectedCategoryId && selectedCategoryId !== ALL_CATEGORY_ID
+        ? selectedCategoryId
+        : DEFAULT_CATEGORY_ID
+    );
     wx.navigateTo({
       url: `/pages/editor/index?categoryId=${categoryId}`
     });
@@ -1043,6 +1166,7 @@ Page(withPageShare({
       });
       await this.loadDocuments(this.data.currentUser, { silent: true });
       this.syncTabBar();
+      await waitForNextRenderAsync();
       wx.hideLoading();
       setTimeout(() => {
         wx.showToast({ title: '移动成功', icon: 'success' });
@@ -1533,27 +1657,30 @@ Page(withPageShare({
     wx.showModal({
       title: '确认删除',
       content: `确定删除选中的 ${this.data.selectedIds.length} 个文件吗？`,
-      success: (res) => {
+      success: async (res) => {
         if (!res.confirm) {
           return;
         }
+
+        const currentUser = this.data.currentUser;
+        const selectedIds = this.data.selectedIds.slice();
 
         wx.showLoading({
           title: '删除中...',
           mask: true
         });
 
-        deleteDocuments(this.data.currentUser, this.data.selectedIds)
-          .then(() => {
-            this.exitBatchMode();
-            this.onShow();
-          })
-          .catch(() => {
-            wx.showToast({ title: '批量删除失败', icon: 'none' });
-          })
-          .finally(() => {
-            wx.hideLoading();
-          });
+        try {
+          await deleteDocuments(currentUser, selectedIds);
+          this.exitBatchMode();
+          await this.loadDocuments(currentUser, { silent: true });
+          this.syncTabBar();
+          await waitForNextRenderAsync();
+          wx.hideLoading();
+        } catch (error) {
+          wx.hideLoading();
+          wx.showToast({ title: '批量删除失败', icon: 'none' });
+        }
       }
     });
   },

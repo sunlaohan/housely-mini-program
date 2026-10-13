@@ -11,6 +11,9 @@ function isMissingCollectionError(error) {
   return text.includes('collection') && (text.includes('does not exist') || text.includes('不存在'));
 }
 
+const ALL_CATEGORY_ID = 'all';
+const QUERY_PAGE_SIZE = 20;
+
 function getOwnerInfo(user) {
   return {
     ownerKey: String((user && user.username) || '').trim(),
@@ -135,17 +138,41 @@ async function runSafeQuery(query) {
   }
 }
 
-async function getDocuments(user) {
+async function runSafeQueryAll(query) {
+  const documents = [];
+  let offset = 0;
+
+  while (true) {
+    const result = await runSafeQuery(query.skip(offset).limit(QUERY_PAGE_SIZE));
+    const page = Array.isArray(result.data) ? result.data : [];
+    documents.push(...page);
+
+    if (page.length < QUERY_PAGE_SIZE) {
+      break;
+    }
+
+    offset += page.length;
+  }
+
+  return { data: documents };
+}
+
+async function getDocuments(user, categoryId = '') {
   const { ownerKey, legacyUserId } = getOwnerInfo(user);
+  const normalizedCategoryId = String(categoryId || '').trim();
+  const shouldFilterCategory = normalizedCategoryId && normalizedCategoryId !== ALL_CATEGORY_ID;
+  const buildConditions = (conditions) => shouldFilterCategory
+    ? { ...conditions, categoryId: normalizedCategoryId }
+    : conditions;
   const queries = [];
 
   if (ownerKey) {
-    queries.push(runSafeQuery(docsCollection().where({ ownerKey })));
-    queries.push(runSafeQuery(docsCollection().where({ username: ownerKey })));
+    queries.push(runSafeQueryAll(docsCollection().where(buildConditions({ ownerKey }))));
+    queries.push(runSafeQueryAll(docsCollection().where(buildConditions({ username: ownerKey }))));
   }
 
   if (legacyUserId) {
-    queries.push(runSafeQuery(docsCollection().where({ userId: legacyUserId })));
+    queries.push(runSafeQueryAll(docsCollection().where(buildConditions({ userId: legacyUserId }))));
   }
 
   const results = await Promise.all(queries);

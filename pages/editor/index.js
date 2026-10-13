@@ -1397,6 +1397,23 @@ Page(withPageShare({
     });
   },
 
+  showSaveLoading() {
+    wx.showLoading({
+      title: '保存中...',
+      mask: true
+    });
+    this._saveLoadingVisible = true;
+  },
+
+  hideSaveLoading() {
+    if (!this._saveLoadingVisible) {
+      return;
+    }
+
+    wx.hideLoading();
+    this._saveLoadingVisible = false;
+  },
+
   async saveDocument() {
     if (this._isSaving) {
       return;
@@ -1467,6 +1484,7 @@ Page(withPageShare({
     try {
       this._isSaving = true;
       this.setData({ isSaving: true });
+      this.showSaveLoading();
 
       const uploadedSourceFiles = await uploadSourcesForStorage(currentUser, sourceFiles);
       const storedSources = toStoredSources(uploadedSourceFiles);
@@ -1489,8 +1507,9 @@ Page(withPageShare({
         sourceFiles: storedSources
       });
 
+      let savedDoc;
       if (mode === 'edit') {
-        const savedDoc = await updateDocument(currentUser, docId, {
+        savedDoc = await updateDocument(currentUser, docId, {
           name: trimmedName,
           description: normalizedDescription,
           markdown: normalizedMarkdown,
@@ -1507,7 +1526,7 @@ Page(withPageShare({
         });
         cacheCoverPreview(uploadedSourceFiles, savedDoc && savedDoc.id ? savedDoc.id : docId);
       } else {
-        const savedDoc = await addDocument(currentUser, {
+        savedDoc = await addDocument(currentUser, {
           name: trimmedName,
           description: normalizedDescription,
           markdown: normalizedMarkdown,
@@ -1525,8 +1544,12 @@ Page(withPageShare({
         cacheCoverPreview(uploadedSourceFiles, savedDoc && savedDoc.id);
       }
 
-      write(KEYS.PENDING_HOME_CATEGORY_ID, 'all');
+      write(KEYS.PENDING_HOME_CATEGORY_ID, selectedCategoryId || DEFAULT_CATEGORY_ID);
+      if (savedDoc && savedDoc.id) {
+        write(KEYS.PENDING_HOME_DOCUMENT, JSON.parse(JSON.stringify(savedDoc)));
+      }
       write(KEYS.PENDING_HOME_REFRESH, Date.now());
+      this.hideSaveLoading();
       wx.showToast({ title: mode === 'edit' ? '已更新' : '已保存', icon: 'success' });
       setTimeout(() => {
         wx.switchTab({
@@ -1534,6 +1557,8 @@ Page(withPageShare({
         });
       }, 500);
     } catch (error) {
+      this.hideSaveLoading();
+
       if (error && error.code === 'CONTENT_RISKY') {
         wx.showModal({
           title: '内容需修改',
@@ -1555,6 +1580,7 @@ Page(withPageShare({
 
       wx.showToast({ title: '保存失败，请检查数据表', icon: 'none' });
     } finally {
+      this.hideSaveLoading();
       this._isSaving = false;
       this.setData({
         isSaving: false,
@@ -1573,6 +1599,8 @@ Page(withPageShare({
       clearTimeout(this.markdownInputRestoreTimer);
       this.markdownInputRestoreTimer = null;
     }
+
+    this.hideSaveLoading();
 
   }
 }));
