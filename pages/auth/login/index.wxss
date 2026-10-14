@@ -10,7 +10,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding-top: 160rpx;
+  padding-top: 80rpx;
 }
 
 .brand-illustration {
@@ -19,10 +19,35 @@
 
 .login-form {
   flex: 1;
-  padding: 160rpx 48rpx 96rpx;
+  padding: 40rpx 48rpx 96rpx;
   display: flex;
   flex-direction: column;
   gap: 32rpx;
+}
+
+.login-form--secondary {
+  padding-top: 32rpx;
+}
+
+.auth-tip {
+  display: flex;
+  align-items: flex-start;
+  gap: 12rpx;
+  color: #7b8591;
+  font-size: 24rpx;
+  font-weight: 400;
+  line-height: 40rpx;
+}
+
+.auth-tip__icon {
+  width: 28rpx;
+  height: 28rpx;
+  margin-top: 6rpx;
+  flex-shrink: 0;
+}
+
+.auth-tip__text {
+  flex: 1;
 }
 
 .field-group {
@@ -46,14 +71,6 @@
   font-weight: 400;
 }
 
-.field-tip {
-  display: block;
-  color: #8b949e;
-  font-size: 24rpx;
-  font-weight: 400;
-  line-height: 40rpx;
-}
-
 .login-input {
   width: 100%;
   height: 84rpx;
@@ -66,6 +83,13 @@
   color: #1b2129;
   box-sizing: border-box;
   font-weight: 400;
+}
+
+.login-input--readonly {
+  display: flex;
+  align-items: center;
+  color: #626c78;
+  background: #e9edf0;
 }
 
 .login-placeholder {
@@ -90,6 +114,194 @@
   font-size: 28rpx;
   line-height: 44rpx;
   color: #1b2129;
+}
+
+.auth-links {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20rpx;
+  padding-top: 8rpx;
+}
+
+.auth-text-link {
+  color: #246fe5;
+  font-size: 26rpx;
+  line-height: 40rpx;
+}
+
+.auth-links__divider {
+  width: 2rpx;
+  height: 24rpx;
+  background: #d5dbe0;
+}
+
+.legacy-entry {
+  color: #7b8591;
+  font-size: 24rpx;
+  line-height: 40rpx;
+  text-align: center;
+}
+
+.reset-methods {
+  display: flex;
+  padding: 8rpx;
+  border-radius: 16rpx;
+  background: #e7ebee;
+}
+
+.reset-method {
+  flex: 1;
+  padding: 18rpx 12rpx;
+  border-radius: 12rpx;
+  color: #7b8591;
+  font-size: 26rpx;
+  line-height: 40rpx;
+  text-align: center;
+}
+
+.reset-method--active {
+  color: #246fe5;
+  background: #ffffff;
+  font-weight: 600;
+}
+
+.wechat-account-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2rpx;
+  padding: 24rpx 32rpx;
+  border-radius: 16rpx;
+  background: #ffffff;
+  box-sizing: border-box;
+}
+
+.wechat-account-card__label {
+  color: #7b8591;
+  font-size: 24rpx;
+  line-height: 40rpx;
+}
+
+.wechat-account-card__value {
+  color: #1b2129;
+  font-size: 28rpx;
+  font-weight: 600;
+  line-height: 44rpx;
+  word-break: break-all;
+}
+
+.wechat-account-card__value--muted {
+  color: #8b949e;
+  font-size: 24rpx;
+  font-weight: 400;
+  line-height: 40rpx;
+}
+
+.recovery-notice,
+.recovered-account-card {
+  padding: 28rpx 32rpx;
+  border-radius: 16rpx;
+  background: #ffffff;
+}
+
+.recovery-notice__title {
+  color: #1b2129;
+  font-size: 28rpx;
+  font-weight: 600;
+  line-height: 44rpx;
+}
+
+.recovery-notice__text {
+  margin-top: 8rpx;
+  color: #7b8591;
+  font-size: 24rpx;
+  line-height: 40rpx;
+}
+
+.recovered-account-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12rpx;
+}
+
+.recovered-account-card__label {
+  color: #7b8591;
+  font-size: 24rpx;
+}
+
+.recovered-account-card__value {
+  color: #1b2129;
+  font-size: 40rpx;
+  font-weight: 600;
+}
+
+.recovery-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 11000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48rpx;
+  box-sizing: border-box;
+}
+
+.recovery-dialog__mask {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.62);
+}
+
+.recovery-dialog__panel {
+  position: relative;
+  width: 100%;
+  padding: 40rpx 32rpx 32rpx;
+  border-radius: 24rpx;
+  background: #ffffff;
+  box-sizing: border-box;
+}
+
+.recovery-dialog__title {
+  color: #1b2129;
+  font-size: 36rpx;
+  font-weight: 600;
+  line-height: 52rpx;
+  text-align: center;
+}
+
+.recovery-dialog__tip {
+  margin-top: 16rpx;
+  color: #7b8591;
+  font-size: 24rpx;
+  line-height: 40rpx;
+}
+
+.recovery-dialog__account {
+  margin-top: 24rpx;
+  color: #626c78;
+  font-size: 26rpx;
+  text-align: center;
+}
+
+.recovery-dialog__code {
+  margin-top: 20rpx;
+  padding: 24rpx 12rpx;
+  border-radius: 14rpx;
+  background: #f1f4f6;
+  color: #1b2129;
+  font-size: 28rpx;
+  font-weight: 600;
+  line-height: 44rpx;
+  text-align: center;
+  word-break: break-all;
+}
+
+.recovery-dialog__copy {
+  padding: 20rpx 0 28rpx;
+  color: #246fe5;
+  font-size: 26rpx;
+  text-align: center;
 }
 
 /* ================================================================

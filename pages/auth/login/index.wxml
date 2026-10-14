@@ -1,44 +1,165 @@
 <view class="login-page">
-  <!-- 品牌区 -->
-  <view class="login-brand">
+  <view wx:if="{{mode === 'login'}}" class="login-brand">
     <image class="brand-illustration" src="../../../assets/auth/img-login.png" mode="widthFix" />
   </view>
 
-  <!-- 表单区 -->
-  <view class="login-form">
-    <view class="field-group">
-      <view class="field-heading">
-        <text class="field-label">账号</text>
-        <text class="field-tip">初次登录会直接创建账号，请记住自己的账号哦～</text>
-      </view>
+  <view class="login-form {{mode === 'login' ? '' : 'login-form--secondary'}}">
+    <view wx:if="{{mode !== 'login' && mode !== 'recover-account'}}" class="auth-tip">
+      <image class="auth-tip__icon" src="../../../assets/auth/info-o.svg" mode="aspectFit" />
+      <text class="auth-tip__text">{{modeTip}}</text>
+    </view>
+
+    <view wx:if="{{mode === 'login' || mode === 'register' || mode === 'upgrade'}}" class="field-group">
+      <text class="field-label">账号</text>
       <input
         class="login-input"
         type="nickname"
+        maxlength="32"
         placeholder="请输入账号"
         placeholder-class="login-placeholder"
         data-field="username"
         bindinput="onInput"
-        bindfocus="onUsernameFocus"
-        bindconfirm="submitLogin"
-        confirm-type="done"
         value="{{username}}"
+        disabled="{{mode === 'upgrade' && currentUser}}"
+      />
+    </view>
+
+    <view wx:if="{{mode === 'security'}}" class="field-group">
+      <text class="field-label">当前账号</text>
+      <view class="login-input login-input--readonly">{{currentUser.username}}</view>
+    </view>
+
+    <view wx:if="{{mode === 'recover-account'}}" class="recovery-notice">
+      <view class="recovery-notice__title">无需手机号</view>
+      <view class="recovery-notice__text">可使用注册时绑定的微信身份，或保存的账号恢复码找回账号。</view>
+    </view>
+
+    <view wx:if="{{mode === 'recover-account'}}" class="reset-methods">
+      <view class="reset-method {{accountRecoveryMethod === 'wechat' ? 'reset-method--active' : ''}}" data-method="wechat" bindtap="chooseAccountRecoveryMethod">当前微信</view>
+      <view class="reset-method {{accountRecoveryMethod === 'code' ? 'reset-method--active' : ''}}" data-method="code" bindtap="chooseAccountRecoveryMethod">恢复码</view>
+    </view>
+
+    <view wx:if="{{mode === 'recover-account' && accountRecoveryMethod === 'code'}}" class="field-group">
+      <text class="field-label">恢复码</text>
+      <input
+        class="login-input"
+        type="text"
+        placeholder="例如 HML-XXXX-XXXX-..."
+        placeholder-class="login-placeholder"
+        data-field="recoveryCode"
+        bindinput="onInput"
+        value="{{recoveryCode}}"
+      />
+    </view>
+
+    <view wx:if="{{mode === 'recover-account' && recoveredUsername}}" class="recovered-account-card">
+      <text class="recovered-account-card__label">已找到账号</text>
+      <text class="recovered-account-card__value">{{recoveredUsername}}</text>
+      <view class="auth-text-link" bindtap="useRecoveredAccount">使用此账号登录</view>
+    </view>
+
+    <view wx:if="{{mode === 'reset-password'}}" class="reset-methods">
+      <view class="reset-method {{resetMethod === 'wechat' ? 'reset-method--active' : ''}}" data-method="wechat" bindtap="chooseResetMethod">当前微信</view>
+      <view class="reset-method {{resetMethod === 'code' ? 'reset-method--active' : ''}}" data-method="code" bindtap="chooseResetMethod">恢复码</view>
+    </view>
+
+    <view wx:if="{{mode === 'reset-password' && resetMethod === 'wechat'}}" class="wechat-account-card">
+      <text class="wechat-account-card__label">当前微信绑定账号</text>
+      <text class="wechat-account-card__value {{wechatAccountStatus === 'bound' ? '' : 'wechat-account-card__value--muted'}}">{{wechatAccountStatus === 'bound' ? wechatBoundUsername : wechatAccountMessage}}</text>
+    </view>
+
+    <view wx:if="{{mode === 'reset-password' && resetMethod === 'code'}}" class="field-group">
+      <text class="field-label">恢复码</text>
+      <input
+        class="login-input"
+        type="text"
+        placeholder="例如 HML-XXXX-XXXX-..."
+        placeholder-class="login-placeholder"
+        data-field="recoveryCode"
+        bindinput="onInput"
+        value="{{recoveryCode}}"
+      />
+    </view>
+
+    <view wx:if="{{mode === 'security'}}" class="field-group">
+      <text class="field-label">当前密码</text>
+      <input
+        class="login-input"
+        password="{{true}}"
+        placeholder="请输入当前密码"
+        placeholder-class="login-placeholder"
+        data-field="currentPassword"
+        bindinput="onInput"
+        value="{{currentPassword}}"
+      />
+    </view>
+
+    <view wx:if="{{mode !== 'recover-account'}}" class="field-group">
+      <text class="field-label">{{mode === 'login' ? '密码' : '新密码'}}</text>
+      <input
+        class="login-input"
+        password="{{true}}"
+        maxlength="64"
+        placeholder="{{mode === 'login' ? '请输入密码' : '至少8位，建议使用字母和数字组合'}}"
+        placeholder-class="login-placeholder"
+        data-field="password"
+        bindinput="onInput"
+        bindconfirm="submit"
+        confirm-type="done"
+        value="{{password}}"
+      />
+    </view>
+
+    <view wx:if="{{mode === 'register' || mode === 'upgrade' || mode === 'reset-password' || mode === 'security'}}" class="field-group">
+      <text class="field-label">确认新密码</text>
+      <input
+        class="login-input"
+        password="{{true}}"
+        maxlength="64"
+        placeholder="请再次输入新密码"
+        placeholder-class="login-placeholder"
+        data-field="confirmPassword"
+        bindinput="onInput"
+        bindconfirm="submit"
+        confirm-type="done"
+        value="{{confirmPassword}}"
       />
     </view>
 
     <view class="login-buttons">
-      <app-button text="登录" variant="dark" width-mode="full" loading="{{isSubmitting}}" disabled="{{isSubmitting}}" bind:press="submitLogin" />
-
-      <app-button variant="light" width-mode="full" disabled="{{isSubmitting}}" bind:press="showAbout">
+      <app-button text="{{submitText}}" variant="dark" width-mode="full" loading="{{isSubmitting}}" disabled="{{isSubmitting}}" bind:press="submit" />
+      <app-button wx:if="{{mode === 'security'}}" text="重新生成恢复码" variant="light" width-mode="full" disabled="{{isSubmitting}}" bind:press="createNewRecoveryCode" />
+      <app-button wx:if="{{mode === 'login'}}" variant="light" width-mode="full" disabled="{{isSubmitting}}" bind:press="showAbout">
         <image slot="prefix" class="info-icon" src="../../../assets/auth/info-o.svg" mode="aspectFit" />
         <text class="login-about-text">关于家物小记</text>
       </app-button>
     </view>
+
+    <view wx:if="{{mode === 'login'}}" class="auth-links">
+      <view class="auth-text-link" data-mode="register" bindtap="switchMode">注册账号</view>
+      <view class="auth-links__divider"></view>
+      <view class="auth-text-link" data-mode="recover-account" bindtap="switchMode">找回账号</view>
+      <view class="auth-links__divider"></view>
+      <view class="auth-text-link" data-mode="reset-password" bindtap="switchMode">找回密码</view>
+    </view>
+
+    <view wx:if="{{mode === 'login'}}" class="legacy-entry" data-mode="upgrade" bindtap="switchMode">老账号首次设置密码</view>
   </view>
 
-  <!-- 关于家物小记 - 底部弹出面板 -->
+  <view wx:if="{{recoveryDialogVisible}}" class="recovery-dialog" catchtouchmove="noop">
+    <view class="recovery-dialog__mask"></view>
+    <view class="recovery-dialog__panel">
+      <view class="recovery-dialog__title">请保存账号恢复码</view>
+      <view class="recovery-dialog__tip">恢复码可在无法使用原微信时找回账号和密码。本恢复码只展示一次，新生成后旧码立即失效。</view>
+      <view wx:if="{{recoveredUsername}}" class="recovery-dialog__account">账号：{{recoveredUsername}}</view>
+      <view class="recovery-dialog__code" bindtap="copyRecoveryCode">{{newRecoveryCode}}</view>
+      <view class="recovery-dialog__copy" bindtap="copyRecoveryCode">复制恢复码</view>
+      <app-button text="我已保存" variant="dark" width-mode="full" bind:press="confirmRecoveryCodeSaved" />
+    </view>
+  </view>
+
   <view class="about-mask {{aboutVisible ? 'about-mask--show' : ''}}" wx:if="{{aboutShow}}" bindtap="hideAbout">
     <view class="about-panel {{aboutVisible ? 'about-panel--show' : ''}}" catchtap="noop">
-      <!-- 导航栏 -->
       <view class="about-navbar">
         <view class="about-navbar__left" bindtap="hideAbout">
           <image class="about-close-icon" src="../../../assets/auth/cross.svg" mode="aspectFit" />
@@ -46,8 +167,6 @@
         <view class="about-navbar__title">关于家物小记</view>
         <view class="about-navbar__right"></view>
       </view>
-
-      <!-- 内容区（可滚动） -->
       <scroll-view class="about-scroll" scroll-y enhanced show-scrollbar="{{false}}">
         <view class="about-video-wrap">
           <video
@@ -72,7 +191,6 @@
           <image wx:else class="about-video" src="{{aboutPosterUrl || '../../../assets/auth/img-login.png'}}" mode="aspectFill" />
         </view>
 
-        <!-- 介绍文字 -->
         <view class="about-text">
           <text>亲爱的朋友，你是否在生活中有过这样的场景：\n\n“诶？我们家的用电户号是多少来着？我记得之前办理开户时那个单子上有，但那个单子放哪儿去了？”\n\n“诶？我们家那个车位产权证号是多少来着？还有车位详细产权地址是什么？办理这个业务要咋这么多信息？我现在上哪儿找去？”\n\n“这里要填车架号，车架号不行驶证上才有么？但行驶证在家里咋弄呢？”\n\n“这热水器出问题了，报错E1是什么意思呀？之前热水器的说明书放哪儿去了？”\n\n“这一抽屉的说明书太碍事儿了，平时又不用，要用了又要找很久，找到还要翻阅很久，太麻烦了”\n\n“诶？我们家毛毛当时从宠物店抱回来时那个出生证呢？我想看下他出生日期”\n\n............\n\n现在有了【家物小记】这些问题都能轻松解决，你只需要把他们拍下来，识别一下，一个图文并茂的专属记忆就存下来了。\n你可以随时查看，还能通过搜索在记忆列表、记忆详情中快速找到你想要的内容～～</text>
         </view>

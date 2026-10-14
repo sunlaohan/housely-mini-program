@@ -471,6 +471,10 @@ Page(withPageShare({
 
   async onShow() {
     const currentUser = getCurrentUser();
+    if (currentUser && currentUser.hasPassword !== true) {
+      wx.reLaunch({ url: '/pages/auth/login/index?mode=upgrade' });
+      return;
+    }
     const shareLandingVisible = !currentUser && this.data.shareEntry === TIMELINE_ENTRY;
 
     if (!currentUser) {

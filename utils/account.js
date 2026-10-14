@@ -24,7 +24,10 @@ function sanitizeUser(user) {
     username: user.username || '',
     avatar: user.avatar || DEFAULT_AVATAR,
     createdAt: user.createdAt || '',
-    previewFontScale: normalizePreviewFontScale(user.previewFontScale)
+    previewFontScale: normalizePreviewFontScale(user.previewFontScale),
+    hasPassword: user.hasPassword === true,
+    hasRecoveryCode: user.hasRecoveryCode === true,
+    wechatBound: user.wechatBound === true
   };
 }
 
@@ -32,11 +35,22 @@ function saveCurrentUser(user) {
   const sanitizedUser = sanitizeUser(user);
   if (!sanitizedUser) {
     remove(KEYS.SESSION);
+    remove(KEYS.AUTH_TOKEN);
     return null;
   }
 
   write(KEYS.SESSION, sanitizedUser);
   return sanitizedUser;
+}
+
+function saveAuthResult(result) {
+  if (result && result.sessionToken) {
+    write(KEYS.AUTH_TOKEN, result.sessionToken);
+  }
+  if (result && result.ok && result.user) {
+    saveCurrentUser(result.user);
+  }
+  return result;
 }
 
 async function callAuth(action, payload = {}) {
@@ -45,6 +59,7 @@ async function callAuth(action, payload = {}) {
       name: 'auth',
       data: {
         action,
+        sessionToken: read(KEYS.AUTH_TOKEN, ''),
         ...payload
       }
     });
@@ -60,8 +75,54 @@ async function callAuth(action, payload = {}) {
   }
 }
 
-async function loginWithUsername(username) {
-  const result = await callAuth('loginOrCreate', { username });
+async function loginWithPassword(username, password) {
+  return saveAuthResult(await callAuth('login', { username, password }));
+}
+
+async function registerAccount(username, password) {
+  return saveAuthResult(await callAuth('register', { username, password }));
+}
+
+async function upgradeLegacyAccount(username, password) {
+  return saveAuthResult(await callAuth('upgradeLegacyAccount', { username, password }));
+}
+
+async function recoverAccount() {
+  return callAuth('recoverAccount');
+}
+
+async function recoverAccountByRecoveryCode(recoveryCode) {
+  return callAuth('recoverAccountByRecoveryCode', { recoveryCode });
+}
+
+async function resetPasswordByWechat(password) {
+  return saveAuthResult(await callAuth('resetPasswordByWechat', { password }));
+}
+
+async function resetPasswordByRecoveryCode(recoveryCode, password) {
+  return saveAuthResult(await callAuth('resetPasswordByRecoveryCode', {
+    recoveryCode,
+    password
+  }));
+}
+
+async function changePassword(currentPassword, password) {
+  return saveAuthResult(await callAuth('changePassword', {
+    currentPassword,
+    password
+  }));
+}
+
+async function regenerateRecoveryCode(currentPassword) {
+  const result = await callAuth('regenerateRecoveryCode', { currentPassword });
+  if (result.ok && result.user) {
+    saveCurrentUser(result.user);
+  }
+  return result;
+}
+
+async function validateSession() {
+  const result = await callAuth('validateSession');
   if (result.ok && result.user) {
     saveCurrentUser(result.user);
   }
@@ -109,6 +170,11 @@ function getCurrentUser() {
   return read(KEYS.SESSION, null);
 }
 
+function clearLocalAuth() {
+  remove(KEYS.SESSION);
+  remove(KEYS.AUTH_TOKEN);
+}
+
 function requireAuth() {
   const user = getCurrentUser();
   if (!user) {
@@ -117,11 +183,22 @@ function requireAuth() {
     });
     return null;
   }
+  if (user.hasPassword !== true) {
+    wx.reLaunch({
+      url: '/pages/auth/login/index?mode=upgrade'
+    });
+    return null;
+  }
   return user;
 }
 
-function logout() {
-  remove(KEYS.SESSION);
+async function logout() {
+  try {
+    await callAuth('logout');
+  } catch (error) {
+    console.warn('remote logout failed', error);
+  }
+  clearLocalAuth();
 }
 
 async function deleteAccount(user) {
@@ -132,7 +209,7 @@ async function deleteAccount(user) {
 
   if (result.ok) {
     clearLocalCategories(user);
-    logout();
+    clearLocalAuth();
     return result;
   }
 
@@ -143,13 +220,22 @@ async function deleteAccount(user) {
 }
 
 module.exports = {
+  changePassword,
   deleteAccount,
   getCurrentUser,
-  loginWithUsername,
+  loginWithPassword,
   logout,
+  recoverAccount,
+  recoverAccountByRecoveryCode,
+  regenerateRecoveryCode,
+  registerAccount,
+  resetPasswordByRecoveryCode,
+  resetPasswordByWechat,
   requireAuth,
   saveCurrentUser,
+  upgradeLegacyAccount,
   updateAvatar,
   updateLocalPreviewFontScale,
-  updatePreviewFontScale
+  updatePreviewFontScale,
+  validateSession
 };

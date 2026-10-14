@@ -1,6 +1,7 @@
 const KEYS = {
   USERS: 'housely_users',
   SESSION: 'housely_session',
+  AUTH_TOKEN: 'housely_auth_token',
   GUEST_ID: 'housely_guest_id',
   COVER_URLS: 'housely_cover_urls',
   DOC_COVERS: 'housely_doc_covers',

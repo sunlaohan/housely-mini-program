@@ -101,6 +101,10 @@ Page(withPageShare({
   onShow() {
     this.syncTabBar();
     const user = getCurrentUser();
+    if (user && user.hasPassword !== true) {
+      wx.reLaunch({ url: '/pages/auth/login/index?mode=upgrade' });
+      return;
+    }
     getApp().setCurrentUser(user);
     this.setData({
       currentUser: user
@@ -129,6 +133,16 @@ Page(withPageShare({
   goLogin() {
     wx.navigateTo({
       url: '/pages/auth/login/index'
+    });
+  },
+
+  openAccountSecurity() {
+    if (!this.data.currentUser) {
+      this.goLogin();
+      return;
+    }
+    wx.navigateTo({
+      url: '/pages/auth/login/index?mode=security'
     });
   },
 
@@ -587,8 +601,8 @@ Page(withPageShare({
     }
   },
 
-  logoutAccount() {
-    logout();
+  async logoutAccount() {
+    await logout();
     getApp().setCurrentUser(null);
     wx.reLaunch({
       url: '/pages/home/index'
